@@ -7,7 +7,7 @@
 ## 🔲 Backlog
 
 ### Deployment (do in order)
-- [ ] `[Human]` Fill `BRIAN_MCP_CLIENT_ID` + `BRIAN_MCP_CLIENT_SECRET` in `.env` (Cloudflare Access service token — same values as brian-family-marketplace plugins)
+- [x] `[Code]` 2026-04-19 — Filled `BRIAN_MCP_CLIENT_ID` + `BRIAN_MCP_CLIENT_SECRET` in `.env` (from brian-mcp/.env.test)
 - [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy — have each person message @userinfobot on Telegram, add to `config/family.json`
 - [ ] `[Code]` Run `docker compose pull && docker compose up -d` — pulls GHCR image, starts container
 - [ ] `[Human]` Register webhook with Telegram (run once):
