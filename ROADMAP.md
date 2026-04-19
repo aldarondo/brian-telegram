@@ -9,11 +9,8 @@
 ### Deployment (do in order)
 - [x] `[Code]` 2026-04-19 — Filled `BRIAN_MCP_CLIENT_ID` + `BRIAN_MCP_CLIENT_SECRET` in `.env` (from brian-mcp/.env.test)
 - [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy — have each person message @userinfobot on Telegram, add to `config/family.json`
-- [ ] `[Code]` Run `docker compose pull && docker compose up -d` — pulls GHCR image, starts container
-- [ ] `[Human]` Register webhook with Telegram (run once):
-  ```
-  curl "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_REDACTED/setWebhook?url=https://brian.aldarondo.family/telegram"
-  ```
+- [x] `[Code]` 2026-04-19 — Fixed network name (brian-net → brian-network), added path routing in CF tunnel (/telegram → brian-telegram:3100), built image locally, container running
+- [x] `[Code]` 2026-04-19 — Webhook registered: brian.aldarondo.family/telegram (Telegram confirmed ok)
 - [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds with the full stack
 
 ### Polish (after smoke test passes)

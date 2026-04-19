@@ -1,6 +1,7 @@
 services:
   brian-telegram:
     image: ghcr.io/aldarondo/brian-telegram:latest
+    build: .
     container_name: brian-telegram
     restart: unless-stopped
     ports:
@@ -17,8 +18,8 @@ services:
       - SESSION_TTL_HOURS=24
       - MAX_TURNS=5
     networks:
-      - brian-net
+      - brian-network
 
 networks:
-  brian-net:
+  brian-network:
     external: true   # shared with brian-mcp stack
