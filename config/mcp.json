@@ -7,6 +7,18 @@
         "CF-Access-Client-Id": "${BRIAN_MCP_CLIENT_ID}",
         "CF-Access-Client-Secret": "${BRIAN_MCP_CLIENT_SECRET}"
       }
+    },
+    "enphase": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8766/sse"
+    },
+    "juicebox": {
+      "type": "sse",
+      "url": "http://172.18.0.1:3001/sse"
+    },
+    "coordinator": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8767/sse"
     }
   }
 }
