@@ -3,15 +3,19 @@ FROM node:20-slim
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
+# Create non-root user for Claude CLI (--dangerously-skip-permissions is blocked for root)
+RUN useradd -m -u 1001 brian && mkdir -p /app/data/sessions /home/brian/.claude && chown -R brian:brian /app /home/brian
+
 WORKDIR /app
 
 # Install app dependencies
 COPY package.json .
-RUN npm install --omit=dev
+RUN npm install --omit=dev && chown -R brian:brian /app
 
 # Copy source
 COPY src/ src/
 COPY config/mcp.json config/mcp.json
+RUN chown -R brian:brian /app
 
 # Sessions volume — persist across container restarts
 VOLUME ["/app/data/sessions"]
@@ -20,6 +24,8 @@ VOLUME ["/app/data/sessions"]
 # docker run -v /path/to/family.json:/app/config/family.json ...
 
 EXPOSE 3100
+
+USER brian
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD node -e "fetch('http://localhost:3100/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"

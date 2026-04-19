@@ -10,7 +10,7 @@ services:
       - /volume1/docker/brian-telegram/config/family.json:/app/config/family.json:ro
       - /volume1/docker/brian-telegram/config/mcp.json:/app/config/mcp.json:ro
       # Mount Claude credentials — copy ~/.claude from dev machine to this path on the NAS
-      - /volume1/docker/brian-telegram/claude-creds:/root/.claude:ro
+      - /volume1/docker/brian-telegram/claude-creds:/home/brian/.claude
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - BRIAN_MCP_CLIENT_ID=${BRIAN_MCP_CLIENT_ID}

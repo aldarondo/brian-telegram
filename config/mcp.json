@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "memory": {
-      "transport": "streamable-http",
+      "type": "http",
       "url": "https://brian.aldarondo.family/mcp",
       "headers": {
         "CF-Access-Client-Id": "${BRIAN_MCP_CLIENT_ID}",

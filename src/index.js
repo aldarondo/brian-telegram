@@ -122,8 +122,10 @@ function runClaude(user, message) {
     '--output-format json',
     '--print',
     `--max-turns ${MAX_TURNS}`,
+    '--dangerously-skip-permissions',
     mcpFlag,
     resumeFlag,
+    '--',
     `"${escaped}"`
   ].filter(Boolean).join(' ');
 
