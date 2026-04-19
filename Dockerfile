@@ -4,7 +4,11 @@ FROM node:20-slim
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user for Claude CLI (--dangerously-skip-permissions is blocked for root)
-RUN useradd -m -u 1001 brian && mkdir -p /app/data/sessions /home/brian/.claude && chown -R brian:brian /app /home/brian
+# Pre-create .claude.json so Claude CLI doesn't abort on first run (it checks for this file)
+RUN useradd -m -u 1001 brian && \
+    mkdir -p /app/data/sessions /home/brian/.claude && \
+    echo '{"firstStartTime":"2026-01-01T00:00:00.000Z","opusProMigrationComplete":true,"migrationVersion":11}' > /home/brian/.claude.json && \
+    chown -R brian:brian /app /home/brian
 
 WORKDIR /app
 
