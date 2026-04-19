@@ -8,6 +8,7 @@ services:
     volumes:
       - /volume1/docker/brian-telegram/sessions:/app/data/sessions
       - /volume1/docker/brian-telegram/config/family.json:/app/config/family.json:ro
+      - /volume1/docker/brian-telegram/config/mcp.json:/app/config/mcp.json:ro
       # Mount Claude credentials — copy ~/.claude from dev machine to this path on the NAS
       - /volume1/docker/brian-telegram/claude-creds:/root/.claude:ro
     environment:
