@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from '
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
-import { splitMessage } from './utils.js';
+import { splitMessage, RateLimiter } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -18,6 +18,8 @@ const PORT              = process.env.PORT || 3100;
 const BOT_TOKEN         = process.env.TELEGRAM_BOT_TOKEN;
 const MAX_TURNS         = parseInt(process.env.MAX_TURNS || '5', 10);
 const SESSION_TTL_MS    = parseInt(process.env.SESSION_TTL_HOURS || '24', 10) * 60 * 60 * 1000;
+const RATE_MAX_MESSAGES = parseInt(process.env.RATE_MAX_MESSAGES || '5', 10);
+const RATE_WINDOW_MS    = parseInt(process.env.RATE_WINDOW_SECONDS || '60', 10) * 1_000;
 if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required');
 // Auth: Claude CLI uses ~/.claude credentials (mounted from host) — no API key needed.
 
@@ -47,6 +49,9 @@ const MCP_CONFIG = join(ROOT, 'config', 'mcp.json');
 const PLUGIN_BASE = join(process.env.HOME || '/home/brian', '.claude', 'plugins', 'cache', 'brian-family');
 const PLUGIN_NAMES = ['prescriptions', 'grocery-list', 'recipes'];
 const PLUGIN_VERSION = '1.0.2';
+
+// ── Rate limiter ─────────────────────────────────────────────
+const rateLimiter = new RateLimiter({ maxMessages: RATE_MAX_MESSAGES, windowMs: RATE_WINDOW_MS });
 
 // ── Session store ───────────────────────────────────────────
 const sessionsDir = join(ROOT, 'data', 'sessions');
@@ -207,6 +212,12 @@ app.post('/telegram', (req, res) => {
   const user = idToName[fromId];
   if (!user) {
     console.log(`[AUTH] Unknown Telegram ID ${fromId} — blocked`);
+    return;
+  }
+
+  if (!rateLimiter.isAllowed(user)) {
+    console.log(`[RATE] ${user} rate limited (>${RATE_MAX_MESSAGES} msgs/${RATE_WINDOW_MS / 1_000}s)`);
+    telegramSend(chatId, "Easy there — too many messages at once. Wait a moment and try again.").catch(() => {});
     return;
   }
 

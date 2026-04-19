@@ -19,6 +19,34 @@
     "coordinator": {
       "type": "sse",
       "url": "http://172.18.0.1:8767/sse"
+    },
+    "email": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8768/sse"
+    },
+    "withings": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8769/sse"
+    },
+    "whoop": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8770/sse"
+    },
+    "kroger": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8771/sse"
+    },
+    "walmart": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8772/sse"
+    },
+    "safeway": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8773/sse"
+    },
+    "monarch": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8775/sse"
     }
   }
 }

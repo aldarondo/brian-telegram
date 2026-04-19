@@ -22,10 +22,11 @@
 - [x] `[Code]` 2026-04-19 — Integration test: webhook 200 ack + enqueue verified (9/9 passing)
 
 ### Future
-- [ ] `[Code]` Rate limiting per user (prevent accidental loops)
+- [x] `[Code]` 2026-04-19 — Rate limiting per user (prevent accidental loops)
 - [x] `[Code]` 2026-04-19 — `/help` command listing available skills and example prompts
 
 ## ✅ Completed
+- [x] 2026-04-19 — Completed: Rate limiting per user — sliding-window RateLimiter in src/utils.js (5 msgs/60s, configurable via RATE_MAX_MESSAGES/RATE_WINDOW_SECONDS env vars); wired into webhook handler; 4 new tests pass
 - [x] `[Code]` 2026-04-19 — Added enphase, juicebox, coordinator MCP servers to config/mcp.json (SSE at 172.18.0.1, reachable via Docker bridge gateway)
 - [x] `[Code]` 2026-04-19 — Bot fully working: non-root user, `--dangerously-skip-permissions`, `--plugin-dir` for brian-family skills, `--` separator fix, `type:http` MCP schema, supplements seeded in correct `prescriptions.item` format
 - [x] `[Code]` 2026-04-19 — Long-lived OAuth token (1-year, via `claude setup-token`) written to NAS credentials file with `expiresAt: 9999999999999` — session-start hook NAS-refresh section removed (no longer needed)

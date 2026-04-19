@@ -5,7 +5,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { splitMessage } from '../src/utils.js';
+import { splitMessage, RateLimiter } from '../src/utils.js';
 
 // ── Unit: identity mapping ────────────────────────────────────
 describe('identity mapping', () => {
@@ -45,6 +45,39 @@ describe('splitMessage', () => {
     const chunks = splitMessage(text);
     assert.ok(chunks.length > 1);
     assert.ok(!chunks[0].endsWith('\n'));
+  });
+});
+
+// ── Unit: rate limiter ────────────────────────────────────────
+describe('RateLimiter', () => {
+  it('allows messages within the limit', () => {
+    const rl = new RateLimiter({ maxMessages: 3, windowMs: 60_000 });
+    assert.ok(rl.isAllowed('alice'));
+    assert.ok(rl.isAllowed('alice'));
+    assert.ok(rl.isAllowed('alice'));
+  });
+
+  it('blocks the next message after limit is reached', () => {
+    const rl = new RateLimiter({ maxMessages: 2, windowMs: 60_000 });
+    rl.isAllowed('bob');
+    rl.isAllowed('bob');
+    assert.ok(!rl.isAllowed('bob'));
+  });
+
+  it('tracks users independently', () => {
+    const rl = new RateLimiter({ maxMessages: 1, windowMs: 60_000 });
+    assert.ok(rl.isAllowed('carol'));
+    assert.ok(!rl.isAllowed('carol'));
+    assert.ok(rl.isAllowed('dave')); // separate user, full budget
+  });
+
+  it('allows messages again after window expires', () => {
+    const rl = new RateLimiter({ maxMessages: 1, windowMs: 10 }); // 10ms window
+    rl.isAllowed('eve');
+    return new Promise(resolve => setTimeout(() => {
+      assert.ok(rl.isAllowed('eve'));
+      resolve();
+    }, 20));
   });
 });
 
