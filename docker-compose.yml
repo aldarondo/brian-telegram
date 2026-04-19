@@ -1,0 +1,23 @@
+services:
+  brian-telegram:
+    build: .
+    container_name: brian-telegram
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./data/sessions:/app/data/sessions
+      - ./config/family.json:/app/config/family.json:ro
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - BRIAN_MCP_CLIENT_ID=${BRIAN_MCP_CLIENT_ID}
+      - BRIAN_MCP_CLIENT_SECRET=${BRIAN_MCP_CLIENT_SECRET}
+      - SESSION_TTL_HOURS=24
+      - MAX_TURNS=5
+    networks:
+      - brian-net
+
+networks:
+  brian-net:
+    external: true   # shared with brian-mcp stack

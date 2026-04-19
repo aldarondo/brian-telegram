@@ -1,0 +1,10 @@
+{
+  "memory": {
+    "transport": "streamable-http",
+    "url": "https://brian.aldarondo.family/mcp",
+    "headers": {
+      "CF-Access-Client-Id": "${BRIAN_MCP_CLIENT_ID}",
+      "CF-Access-Client-Secret": "${BRIAN_MCP_CLIENT_SECRET}"
+    }
+  }
+}

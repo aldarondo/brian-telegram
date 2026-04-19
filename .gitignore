@@ -1,0 +1,10 @@
+node_modules/
+.env
+config/family.json
+data/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/settings.json

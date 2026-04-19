@@ -1,0 +1,17 @@
+{
+  "name": "brian-telegram",
+  "version": "1.0.0",
+  "description": "Telegram bot → Claude Code CLI → Telegram reply. Mobile access to Brian family skills.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
