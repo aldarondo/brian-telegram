@@ -7,8 +7,9 @@
 ## 🔲 Backlog
 
 ### Deployment
-- [ ] `[Human]` Create Telegram bot via @BotFather, save token to .env
-- [ ] `[Human]` Collect Telegram user IDs for Charles, Moriah, Jack, Quincy (message @userinfobot), create config/family.json
+- [x] `[Human]` 2026-04-18 — Telegram bot token saved to .env (from C:\Brian\secrets\telegram.key)
+- [x] `[Human]` 2026-04-18 — Charles's Telegram ID wired into config/family.json
+- [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy (message @userinfobot), add to config/family.json
 - [ ] `[Code]` Build Docker image, verify `claude` CLI runs inside container
 - [ ] `[Human]` Register webhook: `curl https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://brian.aldarondo.family/telegram`
 - [ ] `[Code]` Add to brian-mcp docker-compose.yml (same brian-net network) or deploy standalone
@@ -26,6 +27,7 @@
 
 ## ✅ Completed
 - [x] `[Code]` 2026-04-18 — Initial scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, ROADMAP.md
+- [x] `[Human]` 2026-04-18 — Bot token and Charles Telegram ID configured locally (gitignored)
 
 ## 🚫 Blocked
 <!-- log blockers here -->
