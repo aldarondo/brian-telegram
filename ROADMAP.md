@@ -2,32 +2,36 @@
 > Tag key: `[Code]` = Claude Code · `[Cowork]` = Claude Cowork · `[Human]` = Charles must act
 
 ## 🔄 In Progress
-- [ ] `[Code]` Initial scaffold
+<!-- nothing active -->
 
 ## 🔲 Backlog
 
-### Deployment
-- [x] `[Human]` 2026-04-18 — Telegram bot token saved to .env (from C:\Brian\secrets\telegram.key)
-- [x] `[Human]` 2026-04-18 — Charles's Telegram ID wired into config/family.json
-- [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy (message @userinfobot), add to config/family.json
-- [ ] `[Code]` Build Docker image, verify `claude` CLI runs inside container
-- [ ] `[Human]` Register webhook: `curl https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://brian.aldarondo.family/telegram`
-- [ ] `[Code]` Add to brian-mcp docker-compose.yml (same brian-net network) or deploy standalone
-- [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram, verify prescriptions skill responds
+### Deployment (do in order)
+- [ ] `[Human]` Fill `BRIAN_MCP_CLIENT_ID` + `BRIAN_MCP_CLIENT_SECRET` in `.env` (Cloudflare Access service token — same values as brian-family-marketplace plugins)
+- [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy — have each person message @userinfobot on Telegram, add to `config/family.json`
+- [ ] `[Code]` Run `docker compose up -d` — builds image (installs claude CLI inside), starts container
+- [ ] `[Human]` Register webhook with Telegram (run once):
+  ```
+  curl "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_REDACTED/setWebhook?url=https://brian.aldarondo.family/telegram"
+  ```
+- [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds with the full stack
 
-### Polish
-- [ ] `[Code]` Add `/reset` command to clear session and start fresh
-- [ ] `[Code]` Add typing indicator (sendChatAction "typing") while Claude is processing
-- [ ] `[Code]` Handle multi-part replies (split responses over 4096 chars into multiple messages instead of truncating)
+### Polish (after smoke test passes)
+- [ ] `[Code]` Add typing indicator — send `sendChatAction "typing"` while Claude is processing so it doesn't feel frozen
+- [ ] `[Code]` Add `/reset` command to clear session and start fresh conversation
+- [ ] `[Code]` Split replies over 4096 chars into multiple messages instead of truncating
 - [ ] `[Code]` Write integration test for webhook handler
 
 ### Future
-- [ ] `[Code]` Rate limiting per user (prevent accidental spam loops)
-- [ ] `[Code]` `/help` command listing what Brian can do
+- [ ] `[Code]` Rate limiting per user (prevent accidental loops)
+- [ ] `[Code]` `/help` command listing available skills
 
 ## ✅ Completed
-- [x] `[Code]` 2026-04-18 — Initial scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, ROADMAP.md
-- [x] `[Human]` 2026-04-18 — Bot token and Charles Telegram ID configured locally (gitignored)
+- [x] `[Code]` 2026-04-18 — Scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, tests
+- [x] `[Code]` 2026-04-18 — Switched from API key to mounted ~/.claude credentials (subscription auth)
+- [x] `[Code]` 2026-04-18 — Credentials mount path set to `C:/Users/Aldarondo Family/.claude`
+- [x] `[Human]` 2026-04-18 — Bot token saved to .env (from C:\Brian\secrets\telegram.key)
+- [x] `[Human]` 2026-04-18 — Charles's Telegram ID (7689023388) wired into config/family.json
 
 ## 🚫 Blocked
 <!-- log blockers here -->
