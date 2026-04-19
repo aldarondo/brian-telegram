@@ -4,10 +4,11 @@
 
 import express from 'express';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
+import { splitMessage } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -17,7 +18,6 @@ const PORT              = process.env.PORT || 3100;
 const BOT_TOKEN         = process.env.TELEGRAM_BOT_TOKEN;
 const MAX_TURNS         = parseInt(process.env.MAX_TURNS || '5', 10);
 const SESSION_TTL_MS    = parseInt(process.env.SESSION_TTL_HOURS || '24', 10) * 60 * 60 * 1000;
-
 if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required');
 // Auth: Claude CLI uses ~/.claude credentials (mounted from host) — no API key needed.
 
@@ -66,26 +66,45 @@ function saveSession(user, sessionId) {
   }
 }
 
-// ── Telegram send ────────────────────────────────────────────
-function telegramSend(chatId, text) {
+function clearSession(user) {
+  try {
+    const file = join(sessionsDir, `${user}.json`);
+    if (existsSync(file)) unlinkSync(file);
+  } catch (e) {
+    console.warn(`[session] Could not clear session for ${user}:`, e.message);
+  }
+}
+
+// ── Telegram API ─────────────────────────────────────────────
+function telegramRequest(method, payload) {
   return new Promise((resolve, reject) => {
-    // Telegram max message length is 4096 chars; truncate if needed
-    const safeText = text.length > 4096 ? text.slice(0, 4090) + '…' : text;
-    const payload = JSON.stringify({ chat_id: chatId, text: safeText });
+    const body = JSON.stringify(payload);
     const req = https.request({
       hostname: 'api.telegram.org',
-      path: `/bot${BOT_TOKEN}/sendMessage`,
+      path: `/bot${BOT_TOKEN}/${method}`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
     }, res => {
       res.resume();
       if (res.statusCode === 200) resolve();
       else reject(new Error(`Telegram API ${res.statusCode}`));
     });
     req.on('error', reject);
-    req.write(payload);
+    req.write(body);
     req.end();
   });
+}
+
+// Send typing indicator (best-effort, never throws)
+function sendTyping(chatId) {
+  return telegramRequest('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+}
+
+async function telegramSend(chatId, text) {
+  const chunks = splitMessage(String(text));
+  for (const chunk of chunks) {
+    await telegramRequest('sendMessage', { chat_id: chatId, text: chunk });
+  }
 }
 
 // ── Claude runner ────────────────────────────────────────────
@@ -142,6 +161,7 @@ async function drain() {
   console.log(`[${ts}] ${user} (${chatId}): ${message.slice(0, 80)}`);
 
   try {
+    await sendTyping(chatId);
     const reply = runClaude(user, message);
     await telegramSend(chatId, reply);
     console.log(`[${new Date().toISOString()}] → ${user}: ${String(reply).slice(0, 80)}`);
@@ -172,6 +192,12 @@ app.post('/telegram', (req, res) => {
   const user = idToName[fromId];
   if (!user) {
     console.log(`[AUTH] Unknown Telegram ID ${fromId} — blocked`);
+    return;
+  }
+
+  if (text === '/reset') {
+    clearSession(user);
+    telegramSend(chatId, "Session cleared — starting fresh.").catch(() => {});
     return;
   }
 
