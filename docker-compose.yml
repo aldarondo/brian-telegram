@@ -8,9 +8,11 @@ services:
     volumes:
       - ./data/sessions:/app/data/sessions
       - ./config/family.json:/app/config/family.json:ro
+      # Mount host Claude credentials — uses your Claude.ai subscription, no API key needed.
+      # On Windows with Docker Desktop this path is the WSL2/Linux home; adjust if needed.
+      - /root/.claude:/root/.claude:ro
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - BRIAN_MCP_CLIENT_ID=${BRIAN_MCP_CLIENT_ID}
       - BRIAN_MCP_CLIENT_SECRET=${BRIAN_MCP_CLIENT_SECRET}
       - SESSION_TTL_HOURS=24

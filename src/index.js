@@ -15,12 +15,11 @@ const ROOT = join(__dirname, '..');
 // ── Config ──────────────────────────────────────────────────
 const PORT              = process.env.PORT || 3100;
 const BOT_TOKEN         = process.env.TELEGRAM_BOT_TOKEN;
-const ANTHROPIC_KEY     = process.env.ANTHROPIC_API_KEY;
 const MAX_TURNS         = parseInt(process.env.MAX_TURNS || '5', 10);
 const SESSION_TTL_MS    = parseInt(process.env.SESSION_TTL_HOURS || '24', 10) * 60 * 60 * 1000;
 
-if (!BOT_TOKEN)     throw new Error('TELEGRAM_BOT_TOKEN is required');
-if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY is required');
+if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required');
+// Auth: Claude CLI uses ~/.claude credentials (mounted from host) — no API key needed.
 
 // Family: { "charles": "123456789", "moriah": "987654321", ... }
 // Loaded from FAMILY_TELEGRAM_IDS env var (JSON string) or config/family.json
@@ -112,7 +111,7 @@ function runClaude(user, message) {
   const raw = execSync(cmd, {
     timeout: 120_000,
     encoding: 'utf8',
-    env: { ...process.env, ANTHROPIC_API_KEY: ANTHROPIC_KEY, BRIAN_USER: user }
+    env: { ...process.env, BRIAN_USER: user }
   });
 
   try {
