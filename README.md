@@ -70,6 +70,7 @@ curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=https://bri
 | Command | Description |
 |---------|-------------|
 | `/reset` | Clear session — starts a fresh Claude conversation |
+| `/help` | List available skills and example prompts |
 
 ## Dependencies
 

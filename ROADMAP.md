@@ -23,7 +23,7 @@
 
 ### Future
 - [ ] `[Code]` Rate limiting per user (prevent accidental loops)
-- [ ] `[Code]` `/help` command listing available skills
+- [x] `[Code]` 2026-04-19 — `/help` command listing available skills and example prompts
 
 ## ✅ Completed
 - [x] `[Code]` 2026-04-19 — Added enphase, juicebox, coordinator MCP servers to config/mcp.json (SSE at 172.18.0.1, reachable via Docker bridge gateway)

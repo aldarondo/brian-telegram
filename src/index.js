@@ -216,6 +216,24 @@ app.post('/telegram', (req, res) => {
     return;
   }
 
+  if (text === '/help') {
+    const help = [
+      "Brian can help with:",
+      "",
+      "💊 Prescriptions & supplements — \"what supplements am I on?\", \"add vitamin D 2000 IU\"",
+      "🛒 Grocery list — \"add eggs to the grocery list\", \"what's on the list?\"",
+      "🍞 Recipes — \"find a recipe for banana bread\", \"save this recipe\"",
+      "☀️ Solar (Enphase) — \"how much solar did we produce today?\", \"switch to self-consumption mode\"",
+      "🚗 EV charger (JuiceBox) — \"is the car charging?\", \"stop charging\", \"charge at 24A\"",
+      "⚡ Coordinator — \"optimize the charging schedule\", \"charge now\"",
+      "",
+      "/reset — start a fresh conversation",
+      "/help — this message",
+    ].join("\n");
+    telegramSend(chatId, help).catch(() => {});
+    return;
+  }
+
   enqueue({ user, chatId, message: text });
 });
 
