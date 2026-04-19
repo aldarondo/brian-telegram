@@ -11,7 +11,8 @@
 - [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy — have each person message @userinfobot on Telegram, add to `config/family.json`
 - [x] `[Code]` 2026-04-19 — Fixed network name (brian-net → brian-network), added path routing in CF tunnel (/telegram → brian-telegram:3100), built image locally, container running
 - [x] `[Code]` 2026-04-19 — Webhook registered: brian.aldarondo.family/telegram (Telegram confirmed ok)
-- [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds with the full stack
+- [x] `[Code]` 2026-04-19 — Installed brian-family marketplace + prescriptions/grocery-list/recipes plugins into ~/.claude (mounted ro into container); fixed plugin.json mcpServers schema
+- [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds (empty list expected on first run — will prompt Charles to add his stack)
 
 ### Polish (after smoke test passes)
 - [x] `[Code]` 2026-04-19 — Typing indicator: `sendChatAction "typing"` fires before each Claude run
