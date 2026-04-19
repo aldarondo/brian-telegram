@@ -43,6 +43,11 @@ const idToName = Object.fromEntries(
 // MCP config path (mounted into container)
 const MCP_CONFIG = join(ROOT, 'config', 'mcp.json');
 
+// Plugin dirs — load brian-family skills if cached
+const PLUGIN_BASE = join(process.env.HOME || '/home/brian', '.claude', 'plugins', 'cache', 'brian-family');
+const PLUGIN_NAMES = ['prescriptions', 'grocery-list', 'recipes'];
+const PLUGIN_VERSION = '1.0.2';
+
 // ── Session store ───────────────────────────────────────────
 const sessionsDir = join(ROOT, 'data', 'sessions');
 mkdirSync(sessionsDir, { recursive: true });
@@ -113,6 +118,13 @@ function runClaude(user, message) {
   const resumeFlag = existingSession ? `--resume "${existingSession}"` : '';
   const mcpFlag = existsSync(MCP_CONFIG) ? `--mcp-config "${MCP_CONFIG}"` : '';
 
+  // Load installed plugin skill dirs if they exist
+  const pluginDirs = PLUGIN_NAMES
+    .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSION))
+    .filter(p => existsSync(p))
+    .map(p => `--plugin-dir "${p}"`)
+    .join(' ');
+
   // Wrap message in user context so skills know who's asking
   const prompt = `User: ${user}. Message: ${message}`;
   const escaped = prompt.replace(/"/g, '\\"').replace(/\n/g, ' ');
@@ -123,6 +135,7 @@ function runClaude(user, message) {
     '--print',
     `--max-turns ${MAX_TURNS}`,
     '--dangerously-skip-permissions',
+    pluginDirs,
     mcpFlag,
     resumeFlag,
     '--',
