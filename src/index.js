@@ -227,21 +227,167 @@ app.post('/telegram', (req, res) => {
     return;
   }
 
-  if (text === '/help') {
-    const help = [
-      "Brian can help with:",
-      "",
-      "💊 Prescriptions & supplements — \"what supplements am I on?\", \"add vitamin D 2000 IU\"",
-      "🛒 Grocery list — \"add eggs to the grocery list\", \"what's on the list?\"",
-      "🍞 Recipes — \"find a recipe for banana bread\", \"save this recipe\"",
-      "☀️ Solar (Enphase) — \"how much solar did we produce today?\", \"switch to self-consumption mode\"",
-      "🚗 EV charger (JuiceBox) — \"is the car charging?\", \"stop charging\", \"charge at 24A\"",
-      "⚡ Coordinator — \"optimize the charging schedule\", \"charge now\"",
-      "",
-      "/reset — start a fresh conversation",
-      "/help — this message",
-    ].join("\n");
-    telegramSend(chatId, help).catch(() => {});
+  if (text === '/help' || text.startsWith('/help ')) {
+    const SKILL_HELP = {
+      prescriptions: {
+        emoji: '💊',
+        label: 'Prescriptions & supplements',
+        triggers: ['prescriptions', 'meds', 'supplements', 'vitamins', 'medication'],
+        examples: [
+          '"what supplements am I on?"',
+          '"add vitamin D 2000 IU to my list"',
+          '"remove magnesium from my prescriptions"',
+          '"when do I refill my metformin?"',
+          '"show me my full medication list"',
+        ],
+      },
+      grocery: {
+        emoji: '🛒',
+        label: 'Grocery list',
+        triggers: ['grocery', 'groceries', 'shopping list', 'add to list', 'shopping'],
+        examples: [
+          '"add eggs to the grocery list"',
+          '"what\'s on the grocery list?"',
+          '"remove milk from the list"',
+          '"clear the grocery list"',
+          '"add bread, butter, and cheese"',
+        ],
+      },
+      recipes: {
+        emoji: '🍞',
+        label: 'Recipes',
+        triggers: ['recipe', 'recipes', 'how do I make', 'how to make', 'cook', 'bake'],
+        examples: [
+          '"find a recipe for banana bread"',
+          '"save this recipe: [paste ingredients & steps]"',
+          '"what recipes do we have with chicken?"',
+          '"show me the sourdough recipe"',
+          '"delete the old pancake recipe"',
+        ],
+      },
+      solar: {
+        emoji: '☀️',
+        label: 'Solar (Enphase)',
+        triggers: ['solar', 'enphase', 'panels', 'energy', 'production', 'grid'],
+        examples: [
+          '"how much solar did we produce today?"',
+          '"what\'s our current solar output?"',
+          '"how much have we exported to the grid this week?"',
+          '"switch to self-consumption mode"',
+          '"what\'s our battery level?"',
+        ],
+      },
+      ev: {
+        emoji: '🚗',
+        label: 'EV charger (JuiceBox)',
+        triggers: ['ev', 'charger', 'juicebox', 'charging', 'car', 'electric'],
+        examples: [
+          '"is the car charging?"',
+          '"stop charging"',
+          '"start charging at 24 amps"',
+          '"set the charge limit to 80%"',
+          '"how long until the car is full?"',
+        ],
+      },
+      coordinator: {
+        emoji: '⚡',
+        label: 'Smart coordinator',
+        triggers: ['coordinator', 'optimize', 'schedule', 'smart charge', 'automate'],
+        examples: [
+          '"optimize the charging schedule"',
+          '"charge now using solar"',
+          '"what\'s the recommended charge time tonight?"',
+          '"run the energy optimization"',
+        ],
+      },
+      email: {
+        emoji: '📧',
+        label: 'Email',
+        triggers: ['email', 'mail', 'send email', 'read email', 'inbox'],
+        examples: [
+          '"read my latest emails"',
+          '"send an email to mom saying dinner is at 6"',
+          '"do I have any unread emails?"',
+          '"search my email for the Amazon order"',
+        ],
+      },
+      health: {
+        emoji: '🏃',
+        label: 'Health & fitness (Withings + Whoop)',
+        triggers: ['health', 'withings', 'whoop', 'weight', 'sleep', 'heart rate', 'recovery', 'fitness'],
+        examples: [
+          '"what was my weight today?"',
+          '"how did I sleep last night?"',
+          '"what\'s my recovery score?"',
+          '"show my heart rate trend this week"',
+          '"log my blood pressure: 120/80"',
+        ],
+      },
+      shopping: {
+        emoji: '🏪',
+        label: 'Store shopping (Kroger / Walmart / Safeway)',
+        triggers: ['kroger', 'walmart', 'safeway', 'store', 'order groceries', 'pickup'],
+        examples: [
+          '"find almond milk at Kroger"',
+          '"what\'s the price of chicken breast at Safeway?"',
+          '"add oat milk to my Walmart cart"',
+          '"search Kroger for gluten-free pasta"',
+        ],
+      },
+      budget: {
+        emoji: '💰',
+        label: 'Budget & finances (Monarch)',
+        triggers: ['budget', 'monarch', 'finances', 'spending', 'transactions', 'money'],
+        examples: [
+          '"how much did we spend on groceries this month?"',
+          '"what\'s our current budget status?"',
+          '"show me recent transactions"',
+          '"how are we tracking against the food budget?"',
+        ],
+      },
+    };
+
+    const aliases = {
+      meds: 'prescriptions', supplements: 'prescriptions', vitamins: 'prescriptions', medications: 'prescriptions',
+      groceries: 'grocery', 'shopping list': 'grocery',
+      recipe: 'recipes', cooking: 'recipes', baking: 'recipes',
+      enphase: 'solar', energy: 'solar', panels: 'solar',
+      charger: 'ev', juicebox: 'ev', charging: 'ev', car: 'ev',
+      optimize: 'coordinator', schedule: 'coordinator',
+      mail: 'email',
+      withings: 'health', whoop: 'health', weight: 'health', sleep: 'health', fitness: 'health',
+      kroger: 'shopping', walmart: 'shopping', safeway: 'shopping', store: 'shopping',
+      monarch: 'budget', finances: 'budget', spending: 'budget',
+    };
+
+    const arg = text.slice('/help'.length).trim().toLowerCase();
+    const key = aliases[arg] || arg;
+    const skill = SKILL_HELP[key];
+
+    if (skill) {
+      const detail = [
+        `${skill.emoji} ${skill.label}`,
+        '',
+        'Trigger words: ' + skill.triggers.join(', '),
+        '',
+        'Example phrases:',
+        ...skill.examples.map(e => `• ${e}`),
+      ].join('\n');
+      telegramSend(chatId, detail).catch(() => {});
+    } else {
+      const overview = [
+        'Brian can help with:',
+        '',
+        ...Object.values(SKILL_HELP).map(s => `${s.emoji} ${s.label}`),
+        '',
+        'Type /help <skill> for details and examples.',
+        'Skills: ' + Object.keys(SKILL_HELP).join(', '),
+        '',
+        '/reset — start a fresh conversation',
+        '/help — this message',
+      ].join('\n');
+      telegramSend(chatId, overview).catch(() => {});
+    }
     return;
   }
 
