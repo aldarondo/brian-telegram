@@ -4,8 +4,9 @@
 
 import express from 'express';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import { splitMessage, RateLimiter } from './utils.js';
@@ -121,8 +122,31 @@ async function telegramSend(chatId, text) {
   }
 }
 
+// Download a file from Telegram by file_id, return local tmp path
+function downloadTelegramFile(fileId, ext) {
+  return new Promise((resolve, reject) => {
+    https.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        let filePath;
+        try { filePath = JSON.parse(data).result?.file_path; } catch { }
+        if (!filePath) return reject(new Error('getFile returned no path'));
+
+        const tmpPath = join(tmpdir(), `brian-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+        const dest = createWriteStream(tmpPath);
+        https.get(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`, stream => {
+          stream.pipe(dest);
+          dest.on('finish', () => dest.close(() => resolve(tmpPath)));
+          dest.on('error', reject);
+        }).on('error', reject);
+      });
+    }).on('error', reject);
+  });
+}
+
 // ── Claude runner ────────────────────────────────────────────
-function runClaude(user, message) {
+function runClaude(user, message, { imagePaths = [] } = {}) {
   const existingSession = getSession(user);
   const resumeFlag = existingSession ? `--resume "${existingSession}"` : '';
   const mcpFlag = existsSync(MCP_CONFIG) ? `--mcp-config "${MCP_CONFIG}"` : '';
@@ -133,6 +157,8 @@ function runClaude(user, message) {
     .filter(p => existsSync(p))
     .map(p => `--plugin-dir "${p}"`)
     .join(' ');
+
+  const imageFlags = imagePaths.map(p => `--image "${p}"`).join(' ');
 
   // Wrap message in user context so skills know who's asking
   const prompt = `User: ${user}. Message: ${message}`;
@@ -147,6 +173,7 @@ function runClaude(user, message) {
     pluginDirs,
     mcpFlag,
     resumeFlag,
+    imageFlags,
     '--',
     `"${escaped}"`
   ].filter(Boolean).join(' ');
@@ -179,19 +206,21 @@ function enqueue(job) {
 async function drain() {
   if (busy || queue.length === 0) return;
   busy = true;
-  const { user, chatId, message } = queue.shift();
+  const { user, chatId, message, imagePaths = [] } = queue.shift();
 
   const ts = new Date().toISOString();
-  console.log(`[${ts}] ${user} (${chatId}): ${message.slice(0, 80)}`);
+  console.log(`[${ts}] ${user} (${chatId}): ${message.slice(0, 80)}${imagePaths.length ? ` [+${imagePaths.length} image(s)]` : ''}`);
 
   try {
     await sendTyping(chatId);
-    const reply = runClaude(user, message);
+    const reply = runClaude(user, message, { imagePaths });
     await telegramSend(chatId, reply);
     console.log(`[${new Date().toISOString()}] → ${user}: ${String(reply).slice(0, 80)}`);
   } catch (err) {
     console.error(`[${new Date().toISOString()}] Error for ${user}:`, err.message);
     await telegramSend(chatId, "Brian here — I hit a snag on that one. Try again in a moment.").catch(() => {});
+  } finally {
+    for (const p of imagePaths) unlinkSync(p);
   }
 
   busy = false;
@@ -203,15 +232,54 @@ const app = express();
 app.use(express.json());
 
 // Telegram webhook
-app.post('/telegram', (req, res) => {
+app.post('/telegram', async (req, res) => {
   res.sendStatus(200); // Acknowledge immediately
 
   const msg = req.body?.message;
-  if (!msg?.text) return;
+  if (!msg) return;
 
   const fromId = String(msg.from.id);
   const chatId = msg.chat.id;
-  const text   = msg.text.trim();
+
+  // Resolve message text + any attachments
+  let text = msg.text?.trim() ?? '';
+  let imagePaths = [];
+
+  if (msg.photo) {
+    // photo is an array of sizes — take the largest (last element)
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    try {
+      const p = await downloadTelegramFile(fileId, 'jpg');
+      imagePaths.push(p);
+      if (!text) text = 'What do you see in this image?';
+    } catch (e) {
+      console.error('[photo] Download failed:', e.message);
+    }
+  } else if (msg.document) {
+    const mime = msg.document.mime_type ?? '';
+    const isImage = mime.startsWith('image/');
+    const ext = mime.split('/')[1] ?? 'bin';
+    if (isImage) {
+      try {
+        const p = await downloadTelegramFile(msg.document.file_id, ext);
+        imagePaths.push(p);
+        if (!text) text = 'What do you see in this image?';
+      } catch (e) {
+        console.error('[document/image] Download failed:', e.message);
+      }
+    } else if (mime === 'application/pdf') {
+      telegramSend(chatId, "PDF received — PDF text extraction isn't supported yet. Send me a photo of the page instead.").catch(() => {});
+      return;
+    } else {
+      telegramSend(chatId, `File type "${mime}" isn't supported yet. Try sending a photo or image file.`).catch(() => {});
+      return;
+    }
+  } else if (msg.voice || msg.audio) {
+    telegramSend(chatId, "Voice messages aren't supported yet — type your question instead.").catch(() => {});
+    return;
+  }
+
+  if (!text && imagePaths.length === 0) return;
 
   const user = idToName[fromId];
   if (!user) {
@@ -395,7 +463,28 @@ app.post('/telegram', (req, res) => {
     return;
   }
 
-  enqueue({ user, chatId, message: text });
+  enqueue({ user, chatId, message: text, imagePaths });
+});
+
+// ── Proactive push endpoint ───────────────────────────────────
+// Internal services POST here to message a family member by name.
+// Body: { "user": "moriah", "message": "EV charge complete." }
+// Protect with PUSH_SECRET env var if exposed beyond localhost.
+app.post('/push', express.json(), (req, res) => {
+  const secret = process.env.PUSH_SECRET;
+  if (secret && req.headers['x-push-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { user, message } = req.body ?? {};
+  if (!user || !message) return res.status(400).json({ error: 'user and message are required' });
+
+  const telegramId = familyMap[user];
+  if (!telegramId) return res.status(404).json({ error: `Unknown user: ${user}` });
+
+  telegramSend(Number(telegramId), String(message))
+    .then(() => res.json({ ok: true }))
+    .catch(e => res.status(500).json({ error: e.message }));
 });
 
 // Health check

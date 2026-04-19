@@ -24,6 +24,12 @@
 ### Future
 - [x] `[Code]` 2026-04-19 — Rate limiting per user (prevent accidental loops)
 - [x] `[Code]` 2026-04-19 — `/help` command listing available skills and example prompts
+- [ ] `[Code]` — Image support: detect photo messages, download from Telegram, pass to Claude via `--image`
+- [ ] `[Code]` — Voice messages: download OGG, transcribe via Whisper API, route transcript to Claude
+- [ ] `[Code]` — Documents/PDFs: download attachment, pass image docs via `--image`, extract PDF text via pdftotext
+- [ ] `[Code]` — Proactive push notifications: POST /push endpoint so NAS services can message family members by name
+- [ ] `[Code]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more)
+- [ ] `[Code]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP
 
 ## ✅ Completed
 - [x] 2026-04-19 — Completed: Rate limiting per user — sliding-window RateLimiter in src/utils.js (5 msgs/60s, configurable via RATE_MAX_MESSAGES/RATE_WINDOW_SECONDS env vars); wired into webhook handler; 4 new tests pass
