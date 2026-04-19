@@ -12,17 +12,7 @@
 - [x] `[Code]` 2026-04-19 — CF tunnel path rule live (/telegram → brian-telegram:3100), CF Access bypass policy for /telegram, webhook registered
 - [x] `[Code]` 2026-04-19 — docker-compose updated for NAS deployment (paths: /volume1/docker/brian-telegram/...)
 - [x] `[Code]` 2026-04-19 — Installed brian-family marketplace + prescriptions/grocery-list/recipes plugins into ~/.claude; fixed plugin.json mcpServers schema
-- [ ] `[Human]` NAS deploy — on the Synology, run:
-  ```
-  # 1. Create dirs and copy credentials
-  mkdir -p /volume1/docker/brian-telegram/{sessions,config,claude-creds}
-  rsync -a ~/.claude/ /volume1/docker/brian-telegram/claude-creds/
-  cp /path/to/.env /volume1/docker/brian-telegram/.env
-  cp /path/to/config/family.json /volume1/docker/brian-telegram/config/family.json
-
-  # 2. Pull and start (from repo clone or copy of docker-compose.yml)
-  docker compose pull && docker compose up -d
-  ```
+- [x] `[Code]` 2026-04-19 — Deployed to NAS: image pulled from GHCR, .env/family.json/claude-creds written, container running on brian-mcp_default network
 - [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds
 
 ### Polish (after smoke test passes)

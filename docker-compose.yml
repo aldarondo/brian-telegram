@@ -17,8 +17,8 @@ services:
       - SESSION_TTL_HOURS=24
       - MAX_TURNS=5
     networks:
-      - brian-network
+      - brian-mcp_default
 
 networks:
-  brian-network:
-    external: true   # shared with brian-mcp stack
+  brian-mcp_default:
+    external: true   # cloudflared + mcp-memory live on this network
