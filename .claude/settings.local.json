@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Aldarondo Family/Documents/Github/claude-synology/**)",
+      "Bash(python skills/synology.py ssh \"cat /volume1/docker/brian-telegram/.env\")"
+    ]
+  }
+}

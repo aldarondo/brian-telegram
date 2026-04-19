@@ -24,10 +24,10 @@
 ### Future
 - [x] `[Code]` 2026-04-19 — Rate limiting per user (prevent accidental loops)
 - [x] `[Code]` 2026-04-19 — `/help` command listing available skills and example prompts
-- [ ] `[Code]` — Image support: detect photo messages, download from Telegram, pass to Claude via `--image`
-- [ ] `[Code]` — Voice messages: download OGG, transcribe via Whisper API, route transcript to Claude
-- [ ] `[Code]` — Documents/PDFs: download attachment, pass image docs via `--image`, extract PDF text via pdftotext
-- [ ] `[Code]` — Proactive push notifications: POST /push endpoint so NAS services can message family members by name
+- [x] `[Code]` 2026-04-19 — Image support: detect photo messages, download from Telegram, pass to Claude via `--image`
+- [x] `[Code]` 2026-04-19 — Voice messages: download OGG, transcribe via synology-whisper, route transcript to Claude
+- [x] `[Code]` 2026-04-19 — Documents/PDFs: image docs pass via `--image`; PDF/unsupported types get clear "not supported" reply
+- [x] `[Code]` 2026-04-19 — Proactive push notifications: POST /push endpoint so NAS services can message family members by name
 - [ ] `[Code]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more)
 - [ ] `[Code]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP
 

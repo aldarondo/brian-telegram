@@ -9,6 +9,7 @@ import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import https from 'https';
+import http from 'http';
 import { splitMessage, RateLimiter } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,7 @@ const MAX_TURNS         = parseInt(process.env.MAX_TURNS || '5', 10);
 const SESSION_TTL_MS    = parseInt(process.env.SESSION_TTL_HOURS || '24', 10) * 60 * 60 * 1000;
 const RATE_MAX_MESSAGES = parseInt(process.env.RATE_MAX_MESSAGES || '5', 10);
 const RATE_WINDOW_MS    = parseInt(process.env.RATE_WINDOW_SECONDS || '60', 10) * 1_000;
+const WHISPER_URL       = process.env.WHISPER_URL || 'http://synology-whisper:8778';
 if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required');
 // Auth: Claude CLI uses ~/.claude credentials (mounted from host) — no API key needed.
 
@@ -142,6 +144,53 @@ function downloadTelegramFile(fileId, ext) {
         }).on('error', reject);
       });
     }).on('error', reject);
+  });
+}
+
+// Transcribe an audio file by POSTing it to the synology-whisper service.
+// Returns the transcript string, or throws on failure.
+function transcribeVoice(audioPath) {
+  return new Promise((resolve, reject) => {
+    const boundary = `----WhisperBoundary${Date.now()}`;
+    const filename = audioPath.split(/[\\/]/).pop();
+    const fileData = readFileSync(audioPath);
+
+    const prefix = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: audio/ogg\r\n\r\n`
+    );
+    const suffix = Buffer.from(
+      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\njson\r\n--${boundary}--\r\n`
+    );
+    const body = Buffer.concat([prefix, fileData, suffix]);
+
+    const url = new URL(`${WHISPER_URL}/inference`);
+    const transport = url.protocol === 'https:' ? https : http;
+    const req = transport.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length,
+      },
+    }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const text = (parsed.text ?? '').trim();
+          if (!text) return reject(new Error('Whisper returned empty transcript'));
+          resolve(text);
+        } catch {
+          reject(new Error(`Whisper response parse error: ${data.slice(0, 200)}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
 }
 
@@ -275,8 +324,20 @@ app.post('/telegram', async (req, res) => {
       return;
     }
   } else if (msg.voice || msg.audio) {
-    telegramSend(chatId, "Voice messages aren't supported yet — type your question instead.").catch(() => {});
-    return;
+    const voiceMsg = msg.voice ?? msg.audio;
+    try {
+      const audioPath = await downloadTelegramFile(voiceMsg.file_id, 'ogg');
+      try {
+        text = await transcribeVoice(audioPath);
+        console.log(`[voice] Transcribed: ${text.slice(0, 80)}`);
+      } finally {
+        unlinkSync(audioPath);
+      }
+    } catch (e) {
+      console.error('[voice] Transcription failed:', e.message);
+      telegramSend(chatId, "I couldn't transcribe that voice message — try typing instead.").catch(() => {});
+      return;
+    }
   }
 
   if (!text && imagePaths.length === 0) return;
