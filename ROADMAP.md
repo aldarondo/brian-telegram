@@ -2,7 +2,7 @@
 > Tag key: `[Code]` = Claude Code · `[Cowork]` = Claude Cowork · `[Human]` = Charles must act
 
 ## 🔄 In Progress
-<!-- nothing active -->
+<!-- nothing active — bot is live and working -->
 
 ## 🔲 Backlog
 
@@ -13,7 +13,7 @@
 - [x] `[Code]` 2026-04-19 — docker-compose updated for NAS deployment (paths: /volume1/docker/brian-telegram/...)
 - [x] `[Code]` 2026-04-19 — Installed brian-family marketplace + prescriptions/grocery-list/recipes plugins into ~/.claude; fixed plugin.json mcpServers schema
 - [x] `[Code]` 2026-04-19 — Deployed to NAS: image pulled from GHCR, .env/family.json/claude-creds written, container running on brian-mcp_default network
-- [ ] `[Human]` Smoke test: send "what supplements am I on?" from Charles's Telegram → verify prescriptions skill responds
+- [x] `[Code]` 2026-04-19 — Smoke test passed: supplements query works end-to-end (NAS bot → Claude CLI → MCP memory → Telegram reply)
 
 ### Polish (after smoke test passes)
 - [x] `[Code]` 2026-04-19 — Typing indicator: `sendChatAction "typing"` fires before each Claude run
@@ -26,6 +26,8 @@
 - [ ] `[Code]` `/help` command listing available skills
 
 ## ✅ Completed
+- [x] `[Code]` 2026-04-19 — Bot fully working: non-root user, `--dangerously-skip-permissions`, `--plugin-dir` for brian-family skills, `--` separator fix, `type:http` MCP schema, supplements seeded in correct `prescriptions.item` format
+- [x] `[Code]` 2026-04-19 — Token refresh: session-start hook on Windows pushes fresh CLAUDE_CODE_OAUTH_TOKEN to NAS credentials file each session
 - [x] `[Code]` 2026-04-19 — GHCR build workflow: `.github/workflows/build-brian-telegram.yml` — builds on push + weekly Sunday 04:00 UTC
 - [x] `[Code]` 2026-04-19 — docker-compose updated to pull `ghcr.io/aldarondo/brian-telegram:latest` instead of local build
 - [x] `[Code]` 2026-04-18 — Scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, tests
