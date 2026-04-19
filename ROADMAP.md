@@ -9,7 +9,7 @@
 ### Deployment (do in order)
 - [ ] `[Human]` Fill `BRIAN_MCP_CLIENT_ID` + `BRIAN_MCP_CLIENT_SECRET` in `.env` (Cloudflare Access service token — same values as brian-family-marketplace plugins)
 - [ ] `[Human]` Collect Telegram user IDs for Moriah, Jack, Quincy — have each person message @userinfobot on Telegram, add to `config/family.json`
-- [ ] `[Code]` Run `docker compose up -d` — builds image (installs claude CLI inside), starts container
+- [ ] `[Code]` Run `docker compose pull && docker compose up -d` — pulls GHCR image, starts container
 - [ ] `[Human]` Register webhook with Telegram (run once):
   ```
   curl "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_REDACTED/setWebhook?url=https://brian.aldarondo.family/telegram"
@@ -27,6 +27,8 @@
 - [ ] `[Code]` `/help` command listing available skills
 
 ## ✅ Completed
+- [x] `[Code]` 2026-04-19 — GHCR build workflow: `.github/workflows/build-brian-telegram.yml` — builds on push + weekly Sunday 04:00 UTC
+- [x] `[Code]` 2026-04-19 — docker-compose updated to pull `ghcr.io/aldarondo/brian-telegram:latest` instead of local build
 - [x] `[Code]` 2026-04-18 — Scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, tests
 - [x] `[Code]` 2026-04-18 — Switched from API key to mounted ~/.claude credentials (subscription auth)
 - [x] `[Code]` 2026-04-18 — Credentials mount path set to `C:/Users/Aldarondo Family/.claude`

@@ -1,6 +1,6 @@
 services:
   brian-telegram:
-    build: .
+    image: ghcr.io/aldarondo/brian-telegram:latest
     container_name: brian-telegram
     restart: unless-stopped
     ports:
