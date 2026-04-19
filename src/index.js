@@ -113,7 +113,11 @@ function sendTyping(chatId) {
 async function telegramSend(chatId, text) {
   const chunks = splitMessage(String(text));
   for (const chunk of chunks) {
-    await telegramRequest('sendMessage', { chat_id: chatId, text: chunk });
+    try {
+      await telegramRequest('sendMessage', { chat_id: chatId, text: chunk, parse_mode: 'Markdown' });
+    } catch {
+      await telegramRequest('sendMessage', { chat_id: chatId, text: chunk });
+    }
   }
 }
 
@@ -366,21 +370,21 @@ app.post('/telegram', (req, res) => {
 
     if (skill) {
       const detail = [
-        `${skill.emoji} ${skill.label}`,
+        `${skill.emoji} *${skill.label}*`,
         '',
-        'Trigger words: ' + skill.triggers.join(', '),
+        '*Trigger words:* ' + skill.triggers.join(', '),
         '',
-        'Example phrases:',
+        '*Example phrases:*',
         ...skill.examples.map(e => `• ${e}`),
       ].join('\n');
       telegramSend(chatId, detail).catch(() => {});
     } else {
       const overview = [
-        'Brian can help with:',
+        '*Brian can help with:*',
         '',
-        ...Object.values(SKILL_HELP).map(s => `${s.emoji} ${s.label}`),
+        ...Object.values(SKILL_HELP).map(s => `${s.emoji} *${s.label}*`),
         '',
-        'Type /help <skill> for details and examples.',
+        'Type `/help <skill>` for details and examples.',
         'Skills: ' + Object.keys(SKILL_HELP).join(', '),
         '',
         '/reset — start a fresh conversation',
