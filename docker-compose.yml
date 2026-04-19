@@ -1,16 +1,15 @@
 services:
   brian-telegram:
     image: ghcr.io/aldarondo/brian-telegram:latest
-    build: .
     container_name: brian-telegram
     restart: unless-stopped
     ports:
       - "3100:3100"
     volumes:
-      - ./data/sessions:/app/data/sessions
-      - ./config/family.json:/app/config/family.json:ro
-      # Mount Claude credentials from this machine — uses your Claude.ai subscription, no API key needed.
-      - 'C:/Users/Aldarondo Family/.claude:/root/.claude:ro'
+      - /volume1/docker/brian-telegram/sessions:/app/data/sessions
+      - /volume1/docker/brian-telegram/config/family.json:/app/config/family.json:ro
+      # Mount Claude credentials — copy ~/.claude from dev machine to this path on the NAS
+      - /volume1/docker/brian-telegram/claude-creds:/root/.claude:ro
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - BRIAN_MCP_CLIENT_ID=${BRIAN_MCP_CLIENT_ID}
