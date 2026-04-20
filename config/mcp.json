@@ -47,6 +47,10 @@
     "monarch": {
       "type": "sse",
       "url": "http://172.18.0.1:8775/sse"
+    },
+    "jellyfin": {
+      "type": "sse",
+      "url": "http://172.18.0.1:8000/sse"
     }
   }
 }

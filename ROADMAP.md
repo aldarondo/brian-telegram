@@ -1,6 +1,14 @@
 # brian-telegram Roadmap
 > Tag key: `[Code]` = Claude Code · `[Cowork]` = Claude Cowork · `[Human]` = Charles must act
 
+## 🚧 Human Action Required
+- `[Human]` Install jellyfin plugin on NAS: SSH in and run:
+  ```
+  claude plugin marketplace update brian-family
+  claude plugin install jellyfin@brian-family
+  ```
+  Then redeploy the bot: `docker compose pull && docker compose up -d`
+
 ## 🔄 In Progress
 <!-- nothing active — bot is live and working -->
 
@@ -28,6 +36,7 @@
 - [x] `[Code]` 2026-04-19 — Voice messages: download OGG, transcribe via synology-whisper, route transcript to Claude
 - [x] `[Code]` 2026-04-19 — Documents/PDFs: image docs pass via `--image`; PDF/unsupported types get clear "not supported" reply
 - [x] `[Code]` 2026-04-19 — Proactive push notifications: POST /push endpoint so NAS services can message family members by name
+- [x] `[Code]` 2026-04-20 — Jellyfin plugin wired: per-user plugin loading (charles only), jellyfin MCP added to config/mcp.json, SKILL_HELP updated with movies/TV skill
 - [ ] `[Code]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more)
 - [ ] `[Code]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP
 

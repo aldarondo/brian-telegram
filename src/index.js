@@ -50,8 +50,29 @@ const MCP_CONFIG = join(ROOT, 'config', 'mcp.json');
 
 // Plugin dirs — load brian-family skills if cached
 const PLUGIN_BASE = join(process.env.HOME || '/home/brian', '.claude', 'plugins', 'cache', 'brian-family');
-const PLUGIN_NAMES = ['prescriptions', 'grocery-list', 'recipes'];
-const PLUGIN_VERSION = '1.0.2';
+
+// Per-plugin versions (bump when a plugin is updated and reinstalled on the NAS)
+const PLUGIN_VERSIONS = {
+  'grocery-list':   '1.0.2',
+  'recipes':        '1.0.2',
+  'prescriptions':  '1.0.2',
+  'jellyfin':       '1.0.1',
+};
+
+// Access rules: 'all' = every user, string = specific user only
+const PLUGIN_ACCESS = {
+  'grocery-list':   'all',
+  'recipes':        'all',
+  'prescriptions':  'all',
+  'jellyfin':       'charles',
+};
+
+function pluginsForUser(user) {
+  return Object.keys(PLUGIN_VERSIONS).filter(name => {
+    const access = PLUGIN_ACCESS[name];
+    return access === 'all' || access === user;
+  });
+}
 
 // ── Rate limiter ─────────────────────────────────────────────
 const rateLimiter = new RateLimiter({ maxMessages: RATE_MAX_MESSAGES, windowMs: RATE_WINDOW_MS });
@@ -200,9 +221,9 @@ function runClaude(user, message, { imagePaths = [] } = {}) {
   const resumeFlag = existingSession ? `--resume "${existingSession}"` : '';
   const mcpFlag = existsSync(MCP_CONFIG) ? `--mcp-config "${MCP_CONFIG}"` : '';
 
-  // Load installed plugin skill dirs if they exist
-  const pluginDirs = PLUGIN_NAMES
-    .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSION))
+  // Load installed plugin skill dirs for this user
+  const pluginDirs = pluginsForUser(user)
+    .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSIONS[name]))
     .filter(p => existsSync(p))
     .map(p => `--plugin-dir "${p}"`)
     .join(' ');
@@ -361,7 +382,7 @@ app.post('/telegram', async (req, res) => {
   }
 
   if (text === '/help' || text.startsWith('/help ')) {
-    const SKILL_HELP = {
+    const SKILL_HELP_ALL = {
       prescriptions: {
         emoji: '💊',
         label: 'Prescriptions & supplements',
@@ -480,6 +501,27 @@ app.post('/telegram', async (req, res) => {
       },
     };
 
+    // Skills gated to specific users
+    const SKILL_HELP_CHARLES = {
+      jellyfin: {
+        emoji: '🎬',
+        label: 'Movies & TV (Jellyfin)',
+        triggers: ['movies', 'shows', 'watch', 'jellyfin', 'queue', 'new releases', 'what to watch'],
+        examples: [
+          '"what new movies are out?"',
+          '"show me new sci-fi releases"',
+          '"any good shows from the 90s I haven\'t seen?"',
+          '"queue Dune and the new Silo season"',
+          '"add those last two movies"',
+        ],
+      },
+    };
+
+    const user_skills = user === 'charles'
+      ? { ...SKILL_HELP_ALL, ...SKILL_HELP_CHARLES }
+      : SKILL_HELP_ALL;
+    const SKILL_HELP = user_skills;
+
     const aliases = {
       meds: 'prescriptions', supplements: 'prescriptions', vitamins: 'prescriptions', medications: 'prescriptions',
       groceries: 'grocery', 'shopping list': 'grocery',
@@ -491,6 +533,8 @@ app.post('/telegram', async (req, res) => {
       withings: 'health', whoop: 'health', weight: 'health', sleep: 'health', fitness: 'health',
       kroger: 'shopping', walmart: 'shopping', safeway: 'shopping', store: 'shopping',
       monarch: 'budget', finances: 'budget', spending: 'budget',
+      movies: 'jellyfin', shows: 'jellyfin', 'tv shows': 'jellyfin',
+      watch: 'jellyfin', 'new releases': 'jellyfin', queue: 'jellyfin',
     };
 
     const arg = text.slice('/help'.length).trim().toLowerCase();
