@@ -1,5 +1,8 @@
 FROM node:20-slim
 
+# git is required for 'claude plugin marketplace add' (clones the marketplace repo)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
@@ -29,9 +32,13 @@ VOLUME ["/app/data/sessions"]
 
 EXPOSE 3100
 
+# Entrypoint bootstraps marketplace + plugins before starting the bot
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown brian:brian /entrypoint.sh
+
 USER brian
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD node -e "fetch('http://localhost:3100/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
-CMD ["node", "src/index.js"]
+CMD ["/entrypoint.sh"]
