@@ -37,8 +37,8 @@
 - [x] `[Code]` 2026-04-19 — Documents/PDFs: image docs pass via `--image`; PDF/unsupported types get clear "not supported" reply
 - [x] `[Code]` 2026-04-19 — Proactive push notifications: POST /push endpoint so NAS services can message family members by name
 - [x] `[Code]` 2026-04-20 — Jellyfin plugin wired: per-user plugin loading (charles only), jellyfin MCP added to config/mcp.json, SKILL_HELP updated with movies/TV skill
-- [ ] `[Code]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more)
-- [ ] `[Code]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP
+- [ ] `[Human]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more) — reassigned from [Code]: requires UX design decisions about when/which buttons to show; needs Charles to define the trigger protocol before implementation
+- [ ] `[Human]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP — reassigned from [Code]: requires Google Calendar MCP credentials to be configured on the NAS
 
 ## ✅ Completed
 - [x] 2026-04-19 — Completed: Rate limiting per user — sliding-window RateLimiter in src/utils.js (5 msgs/60s, configurable via RATE_MAX_MESSAGES/RATE_WINDOW_SECONDS env vars); wired into webhook handler; 4 new tests pass
