@@ -115,20 +115,26 @@ const rateLimiter = new RateLimiter({ maxMessages: RATE_MAX_MESSAGES, windowMs: 
 const sessionsDir = join(ROOT, 'data', 'sessions');
 mkdirSync(sessionsDir, { recursive: true });
 
+const MAX_HISTORY = 8; // exchanges to retain for context recovery
+
 function getSession(user) {
   try {
     const file = join(sessionsDir, `${user}.json`);
     if (!existsSync(file)) return null;
-    const { sessionId, savedAt } = JSON.parse(readFileSync(file, 'utf8'));
-    if (Date.now() - savedAt > SESSION_TTL_MS) return null;
-    return sessionId;
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    if (Date.now() - data.savedAt > SESSION_TTL_MS) return { sessionId: null, history: data.history ?? [] };
+    return { sessionId: data.sessionId, history: data.history ?? [] };
   } catch { return null; }
 }
 
-function saveSession(user, sessionId) {
+function saveSession(user, sessionId, { userMessage, assistantReply, prevHistory = [] } = {}) {
   try {
+    const history = [
+      ...prevHistory,
+      ...(userMessage && assistantReply ? [{ user: userMessage, assistant: assistantReply }] : []),
+    ].slice(-MAX_HISTORY);
     writeFileSync(join(sessionsDir, `${user}.json`),
-      JSON.stringify({ sessionId, savedAt: Date.now() }));
+      JSON.stringify({ sessionId, savedAt: Date.now(), history }));
   } catch (e) {
     console.warn(`[session] Could not save session for ${user}:`, e.message);
   }
@@ -141,6 +147,12 @@ function clearSession(user) {
   } catch (e) {
     console.warn(`[session] Could not clear session for ${user}:`, e.message);
   }
+}
+
+function buildContextPreamble(history) {
+  if (!history || history.length === 0) return '';
+  const lines = history.map(h => `User: ${h.user}\nBrian: ${h.assistant}`).join('\n\n');
+  return `[Your previous session expired. Here is recent conversation context so you can continue naturally — do not mention the session or this note to the user:\n\n${lines}\n]\n\n`;
 }
 
 // ── Telegram API ─────────────────────────────────────────────
@@ -281,31 +293,40 @@ function buildClaudeCmd(user, message, { imagePaths = [], sessionId = null } = {
 }
 
 function runClaude(user, message, { imagePaths = [] } = {}) {
-  const existingSession = getSession(user);
+  const session = getSession(user);
+  const { sessionId, history } = session ?? { sessionId: null, history: [] };
 
   const execOpts = { timeout: 120_000, encoding: 'utf8', env: { ...process.env, BRIAN_USER: user } };
 
+  const runFresh = (extraHistory = []) => {
+    const preamble = buildContextPreamble(extraHistory);
+    const cmd = buildClaudeCmd(user, preamble + message, { imagePaths });
+    return execSync(cmd, execOpts);
+  };
+
   let raw;
-  if (existingSession) {
+  if (sessionId) {
     try {
-      raw = execSync(buildClaudeCmd(user, message, { imagePaths, sessionId: existingSession }), execOpts);
+      raw = execSync(buildClaudeCmd(user, message, { imagePaths, sessionId }), execOpts);
     } catch (err) {
-      const msg = err.stderr ?? err.stdout ?? err.message ?? '';
-      if (msg.includes('No conversation found')) {
-        console.warn(`[session] Stale session for ${user}, clearing and retrying fresh`);
+      const errText = err.stderr ?? err.stdout ?? err.message ?? '';
+      if (errText.includes('No conversation found')) {
+        console.warn(`[session] Stale session for ${user}, recovering with ${history.length} history exchange(s)`);
         clearSession(user);
-        raw = execSync(buildClaudeCmd(user, message, { imagePaths }), execOpts);
+        raw = runFresh(history);
       } else {
         throw err;
       }
     }
   } else {
-    raw = execSync(buildClaudeCmd(user, message, { imagePaths }), execOpts);
+    raw = runFresh(history);
   }
 
   try {
     const parsed = JSON.parse(raw);
-    if (parsed.session_id) saveSession(user, parsed.session_id);
+    if (parsed.session_id) {
+      saveSession(user, parsed.session_id, { userMessage: message, assistantReply: parsed.result, prevHistory: history });
+    }
     return parsed.result ?? raw.trim();
   } catch {
     return raw.trim();
