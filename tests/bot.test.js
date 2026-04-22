@@ -39,6 +39,14 @@ describe('splitMessage', () => {
     assert.equal(chunks.join(''), long);
   });
 
+  it('hard-cuts a single word longer than the limit', () => {
+    const word = 'x'.repeat(5000);
+    const chunks = splitMessage(word);
+    assert.ok(chunks.length > 1);
+    for (const c of chunks) assert.ok(c.length <= 4096, `chunk too long: ${c.length}`);
+    assert.equal(chunks.join(''), word);
+  });
+
   it('prefers splitting on newlines', () => {
     const line = 'a'.repeat(2000);
     const text = `${line}\n${line}\n${line}`;

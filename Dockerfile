@@ -39,6 +39,6 @@ RUN chmod +x /entrypoint.sh && chown brian:brian /entrypoint.sh
 USER brian
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD node -e "fetch('http://localhost:3100/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
+  CMD node -e "const ac=new AbortController();setTimeout(()=>ac.abort(),4000);fetch('http://localhost:3100/health',{signal:ac.signal}).then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
 CMD ["/entrypoint.sh"]

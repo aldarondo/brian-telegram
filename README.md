@@ -154,6 +154,30 @@ Rotation happens automatically by size — when `app.log` exceeds the limit it i
 tail -f /volume1/docker/brian-telegram/logs/app.log
 ```
 
+## Session storage
+
+Session files are written to `/app/data/sessions/` inside the container (one JSON file per user). Mount this path to persist sessions across container restarts:
+
+```yaml
+volumes:
+  - /volume1/docker/brian-telegram/sessions:/app/data/sessions
+```
+
+Sessions expire after `SESSION_TTL_HOURS` (default 24h). On expiry the session ID is dropped but recent conversation history is injected as a context preamble so replies stay coherent.
+
+## Docker networking
+
+The bot runs on the `brian-mcp_default` bridge network alongside the brian-mcp stack. MCP servers are reachable at the Docker gateway IP (`172.18.0.1` by default). The `--dangerously-skip-permissions` flag is required because Claude Code's permission prompts are interactive and cannot be answered in a headless container.
+
+## Bumping plugin versions
+
+Plugin versions are pinned in `src/index.js` under `PLUGIN_VERSIONS`. When a plugin is updated on the NAS:
+
+1. SSH into the NAS and run `claude plugin marketplace update brian-family`
+2. Note the new version from the output
+3. Update the version string in `PLUGIN_VERSIONS` in `src/index.js`
+4. Commit and push — the CI workflow builds and deploys automatically
+
 ## Dependencies
 
 - Node.js 20+

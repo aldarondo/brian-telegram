@@ -277,9 +277,14 @@ function buildClaudeArgs(user, message, { imagePaths = [], sessionId = null } = 
   ];
 
   pluginsForUser(user)
-    .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSIONS[name]))
-    .filter(p => existsSync(p))
-    .forEach(p => { args.push('--plugin-dir', p); });
+    .map(name => ({ name, path: join(PLUGIN_BASE, name, PLUGIN_VERSIONS[name]) }))
+    .forEach(({ name, path: p }) => {
+      if (existsSync(p)) {
+        args.push('--plugin-dir', p);
+      } else {
+        console.warn(`[plugin] ${name} not found at ${p} — skipping`);
+      }
+    });
 
   if (existsSync(MCP_CONFIG)) args.push('--mcp-config', MCP_CONFIG);
   if (sessionId) args.push('--resume', sessionId);
