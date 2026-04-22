@@ -39,9 +39,10 @@
 - [x] `[Code]` 2026-04-20 — Jellyfin plugin wired: per-user plugin loading (charles only), jellyfin MCP added to config/mcp.json, SKILL_HELP updated with movies/TV skill
 - [ ] `[Human]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more) — reassigned from [Code]: requires UX design decisions about when/which buttons to show; needs Charles to define the trigger protocol before implementation
 - [ ] `[Human]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP — reassigned from [Code]: requires Google Calendar MCP credentials to be configured on the NAS
-- [ ] `[Code]` — food-log plugin: wire `food-log` into PLUGIN_VERSIONS + PLUGIN_ACCESS + /help once plugin is built. Plan: [../brian-family-marketplace/plans/food-log-plugin.md](../brian-family-marketplace/plans/food-log-plugin.md)
+- [ ] `[Code]` — Install food-log plugin on NAS via `/synology`: run `claude plugin marketplace update brian-family && claude plugin install food-log@brian-family` on the NAS, then redeploy: `docker compose pull && docker compose up -d`. Smoke test: send a food screenshot via Telegram, verify memory entry stored under `food.entry,user:charles`.
 
 ## ✅ Completed
+- [x] `[Code]` 2026-04-22 — food-log plugin wired: PLUGIN_VERSIONS + PLUGIN_ACCESS + /help food-log entry with aliases (food, calories, macros, nutrition)
 - [x] `[Code]` 2026-04-22 — QA audit + full fix pass: shell injection patched (execSync→spawnSync args array), PUSH_SECRET now required on /push (was silently open), image/voice temp-file cleanup crashes fixed, bare catch blocks log errors, log rotation file-op errors handled, /push rate-limited, optional Telegram webhook signature verification (WEBHOOK_SECRET), duplicate workflow deleted, buildContextPreamble moved to utils.js, tests 13→20 passing, .env.example and README updated
 - [x] 2026-04-19 — Completed: Rate limiting per user — sliding-window RateLimiter in src/utils.js (5 msgs/60s, configurable via RATE_MAX_MESSAGES/RATE_WINDOW_SECONDS env vars); wired into webhook handler; 4 new tests pass
 - [x] `[Code]` 2026-04-19 — Added enphase, juicebox, coordinator MCP servers to config/mcp.json (SSE at 172.18.0.1, reachable via Docker bridge gateway)

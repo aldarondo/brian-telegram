@@ -169,13 +169,99 @@ Sessions expire after `SESSION_TTL_HOURS` (default 24h). On expiry the session I
 
 The bot runs on the `brian-mcp_default` bridge network alongside the brian-mcp stack. MCP servers are reachable at the Docker gateway IP (`172.18.0.1` by default). The `--dangerously-skip-permissions` flag is required because Claude Code's permission prompts are interactive and cannot be answered in a headless container.
 
+## Deploying a new skill
+
+Complete checklist for shipping a new plugin end-to-end. Steps 1–3 live in `brian-family-marketplace`; step 4 lives here; step 5 runs on the NAS via `/synology`.
+
+### 1. Build the plugin (brian-family-marketplace)
+
+Create the plugin folder following the standard layout:
+```
+plugins/[name]/
+  .claude-plugin/plugin.json   # name, description, version
+  mcp/config.json              # copy from any existing plugin — same endpoint
+  skills/[name]/SKILL.md       # skill instructions for Claude
+  README.md
+```
+
+Add an entry to `.claude-plugin/marketplace.json`:
+```json
+{
+  "name": "my-skill",
+  "source": "./plugins/my-skill",
+  "description": "...",
+  "category": "health|family|media",
+  "tags": ["..."],
+  "access": "all|per-user|charles"
+}
+```
+
+Validate JSON before committing:
+```bash
+node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8')); console.log('OK')"
+```
+
+Also add the memory namespace prefix to `CLAUDE.md` under "Memory Namespace Rules".
+
+### 2. Wire into this repo (src/bot.js)
+
+Add two entries:
+```js
+// PLUGIN_VERSIONS
+'my-skill': '1.0.0',
+
+// PLUGIN_ACCESS
+'my-skill': 'all',   // or 'charles', or 'per-user'
+```
+
+Add a help entry to `SKILL_HELP_ALL` (or `SKILL_HELP_CHARLES` for charles-only skills):
+```js
+'my-skill': {
+  emoji: '🔧',
+  label: 'Skill label',
+  triggers: ['keyword1', 'keyword2'],
+  examples: ['"example phrase"'],
+},
+```
+
+Add aliases to the `aliases` map so `/help keyword` resolves correctly.
+
+### 3. Commit and push both repos
+
+CI builds and pushes a new Docker image automatically on push to main.
+
+### 4. Install on the NAS (via `/synology`)
+
+Run `/synology` and issue these commands on the NAS:
+
+```bash
+# Pull the updated marketplace and install the new plugin
+claude plugin marketplace update brian-family
+claude plugin install my-skill@brian-family
+
+# Pull the new bot image and redeploy
+cd /volume1/docker/brian-telegram
+docker compose pull && docker compose up -d
+```
+
+### 5. Smoke test
+
+Send a test message via Telegram that triggers the new skill. Confirm the reply is correct and (if the skill writes memory) check that the memory entry was stored:
+
+```bash
+# On the NAS — tail logs while testing
+tail -f /volume1/docker/brian-telegram/logs/app.log
+```
+
+---
+
 ## Bumping plugin versions
 
-Plugin versions are pinned in `src/index.js` under `PLUGIN_VERSIONS`. When a plugin is updated on the NAS:
+Plugin versions are pinned in `src/bot.js` under `PLUGIN_VERSIONS`. When a plugin is updated on the NAS:
 
 1. SSH into the NAS and run `claude plugin marketplace update brian-family`
 2. Note the new version from the output
-3. Update the version string in `PLUGIN_VERSIONS` in `src/index.js`
+3. Update the version string in `PLUGIN_VERSIONS` in `src/bot.js`
 4. Commit and push — the CI workflow builds and deploys automatically
 
 ## Dependencies

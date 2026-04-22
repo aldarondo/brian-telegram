@@ -10,3 +10,4 @@ Thumbs.db
 .vscode/settings.json
 .githooks/
 QA_REPORT.md
+logs/
