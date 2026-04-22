@@ -10,7 +10,7 @@ Telegram bot that gives family members mobile access to Brian's Claude skills (g
 2. Bot maps their Telegram user ID to their name (charles, moriah, jack, quincy)
 3. Bot runs `claude --print --resume [session-id] --mcp-config config/mcp.json --plugin-dir [...] --image [path] -- "[message]"`
 4. Claude has access to all brian-family-marketplace skills (prescriptions, grocery-list, recipes) plus MCP servers (solar, EV, coordinator, email, health, shopping, budget)
-5. Session ID is saved — next message resumes the same conversation (24h TTL)
+5. Session ID is saved — next message resumes the same conversation (24h TTL, configurable via `SESSION_TTL_HOURS`). On expiry, recent conversation history is injected as context so replies stay coherent.
 6. Reply sent back via Telegram with Markdown formatting (falls back to plain text if parsing fails)
 
 ## Setup
@@ -31,7 +31,8 @@ Each person messages @userinfobot on Telegram. Copy `config/family.example.json`
 
 ```bash
 cp .env.example .env
-# fill in: TELEGRAM_BOT_TOKEN, BRIAN_MCP_CLIENT_ID, BRIAN_MCP_CLIENT_SECRET
+# Required: TELEGRAM_BOT_TOKEN, BRIAN_MCP_CLIENT_ID, BRIAN_MCP_CLIENT_SECRET, PUSH_SECRET
+# Recommended: WEBHOOK_SECRET (set same value in setWebhook call — see step 6)
 # No API key needed — uses Claude subscription auth via mounted ~/.claude credentials
 ```
 
@@ -62,7 +63,11 @@ docker compose up -d
 ### 6. Register the webhook
 
 ```bash
+# Basic (no signature verification)
 curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=https://brian.aldarondo.family/telegram"
+
+# With webhook secret (recommended — set WEBHOOK_SECRET in .env to the same value)
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=https://brian.aldarondo.family/telegram&secret_token=$WEBHOOK_SECRET"
 ```
 
 ## Commands
@@ -91,7 +96,7 @@ Other NAS services can message any family member without a user-initiated conver
 **Headers:**
 ```
 Content-Type: application/json
-X-Push-Secret: <value of PUSH_SECRET env var>   # required only if PUSH_SECRET is set
+X-Push-Secret: <value of PUSH_SECRET env var>   # required — 401 if missing or wrong
 ```
 
 **Body:**
@@ -104,7 +109,16 @@ X-Push-Secret: <value of PUSH_SECRET env var>   # required only if PUSH_SECRET i
 { "ok": true }
 ```
 
-`user` must match a name in `config/family.json`. Returns 404 if the user is unknown, 401 if the secret is wrong, 400 if fields are missing.
+`user` must match a name in `config/family.json`.
+
+| Status | Cause |
+|--------|-------|
+| 200 | Success |
+| 400 | Missing `user` or `message` field |
+| 401 | `PUSH_SECRET` not set on server, or wrong `X-Push-Secret` header |
+| 404 | Unknown user name |
+| 429 | Rate limit exceeded |
+| 500 | Telegram send failure |
 
 **Example from a NAS service:**
 ```bash

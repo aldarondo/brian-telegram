@@ -8,3 +8,5 @@ data/
 Thumbs.db
 *.swp
 .vscode/settings.json
+.githooks/
+QA_REPORT.md

@@ -1,5 +1,12 @@
 const TG_MAX = 4096;
 
+// Build a context preamble from expired-session history so Claude can continue naturally.
+export function buildContextPreamble(history) {
+  if (!history || history.length === 0) return '';
+  const lines = history.map(h => `User: ${h.user}\nBrian: ${h.assistant}`).join('\n\n');
+  return `[Your previous session expired. Here is recent conversation context so you can continue naturally — do not mention the session or this note to the user:\n\n${lines}\n]\n\n`;
+}
+
 // Sliding-window rate limiter — track timestamps of recent messages per user
 export class RateLimiter {
   constructor({ maxMessages = 5, windowMs = 60_000 } = {}) {

@@ -5,7 +5,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { splitMessage, RateLimiter } from '../src/utils.js';
+import { splitMessage, RateLimiter, buildContextPreamble } from '../src/utils.js';
 
 // ── Unit: identity mapping ────────────────────────────────────
 describe('identity mapping', () => {
@@ -81,6 +81,32 @@ describe('RateLimiter', () => {
   });
 });
 
+// ── Unit: buildContextPreamble ────────────────────────────────
+describe('buildContextPreamble', () => {
+  it('returns empty string for empty history', () => {
+    assert.equal(buildContextPreamble([]), '');
+    assert.equal(buildContextPreamble(null), '');
+    assert.equal(buildContextPreamble(undefined), '');
+  });
+
+  it('wraps history in a preamble block', () => {
+    const preamble = buildContextPreamble([{ user: 'hi', assistant: 'hello' }]);
+    assert.ok(preamble.includes('Your previous session expired'));
+    assert.ok(preamble.includes('User: hi'));
+    assert.ok(preamble.includes('Brian: hello'));
+    assert.ok(preamble.endsWith('\n\n'));
+  });
+
+  it('joins multiple exchanges with blank lines', () => {
+    const preamble = buildContextPreamble([
+      { user: 'first', assistant: 'reply1' },
+      { user: 'second', assistant: 'reply2' },
+    ]);
+    assert.ok(preamble.includes('User: first'));
+    assert.ok(preamble.includes('User: second'));
+  });
+});
+
 // ── Unit: session TTL ─────────────────────────────────────────
 describe('session TTL', () => {
   const TTL = 24 * 60 * 60 * 1000;
@@ -100,27 +126,47 @@ describe('session TTL', () => {
 describe('webhook handler', () => {
   let server;
   const PORT = 13199;
+  const PUSH_SECRET = 'test-push-secret';
 
   // Stub out Telegram + Claude so the server starts without real credentials
   before(async () => {
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
     process.env.FAMILY_TELEGRAM_IDS = JSON.stringify({ testuser: '42' });
+    process.env.PUSH_SECRET = PUSH_SECRET;
 
     // Dynamically import after env is set — but index.js starts a server on PORT
     // so we spin up a plain http proxy just to POST to the webhook path
     server = http.createServer((req, res) => {
-      if (req.method === 'POST' && req.url === '/telegram') {
-        let body = '';
-        req.on('data', d => { body += d; });
-        req.on('end', () => {
-          res.writeHead(200);
-          res.end('ok');
-          // Expose last received body for assertions
-          server._lastBody = JSON.parse(body);
-        });
-      } else {
-        res.writeHead(404); res.end();
-      }
+      let body = '';
+      req.on('data', d => { body += d; });
+      req.on('end', () => {
+        server._lastBody = body ? JSON.parse(body) : null;
+
+        if (req.method === 'POST' && req.url === '/telegram') {
+          const webhookSecret = req.headers['x-telegram-bot-api-secret-token'];
+          const expectedSecret = process.env.WEBHOOK_SECRET;
+          if (expectedSecret && webhookSecret !== expectedSecret) {
+            res.writeHead(403); res.end();
+            return;
+          }
+          res.writeHead(200); res.end('ok');
+        } else if (req.method === 'POST' && req.url === '/push') {
+          const secret = process.env.PUSH_SECRET;
+          if (!secret || req.headers['x-push-secret'] !== secret) {
+            res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+          }
+          const { user } = server._lastBody ?? {};
+          const familyMap = JSON.parse(process.env.FAMILY_TELEGRAM_IDS ?? '{}');
+          if (!familyMap[user]) {
+            res.writeHead(404); res.end(JSON.stringify({ error: `Unknown user: ${user}` }));
+            return;
+          }
+          res.writeHead(200); res.end(JSON.stringify({ ok: true }));
+        } else {
+          res.writeHead(404); res.end();
+        }
+      });
     });
     await new Promise(resolve => server.listen(PORT, resolve));
   });
@@ -169,5 +215,80 @@ describe('webhook handler', () => {
       req.end();
     });
     assert.deepEqual(server._lastBody, update);
+  });
+
+  it('rejects /push without secret', async () => {
+    const body = JSON.stringify({ user: 'testuser', message: 'hello' });
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: 'localhost', port: PORT, path: '/push', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+        resolve
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    assert.equal(res.statusCode, 401);
+  });
+
+  it('accepts /push with correct secret for known user', async () => {
+    const body = JSON.stringify({ user: 'testuser', message: 'hello' });
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: 'localhost', port: PORT, path: '/push', method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'x-push-secret': PUSH_SECRET,
+          } },
+        resolve
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    assert.equal(res.statusCode, 200);
+  });
+
+  it('returns 404 from /push for unknown user', async () => {
+    const body = JSON.stringify({ user: 'nobody', message: 'hello' });
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: 'localhost', port: PORT, path: '/push', method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'x-push-secret': PUSH_SECRET,
+          } },
+        resolve
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    assert.equal(res.statusCode, 404);
+  });
+
+  it('rejects /telegram with wrong webhook secret when WEBHOOK_SECRET is set', async () => {
+    process.env.WEBHOOK_SECRET = 'expected-secret';
+    const update = { message: { text: 'hi', from: { id: 42 }, chat: { id: 42 } } };
+    const body = JSON.stringify(update);
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: 'localhost', port: PORT, path: '/telegram', method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'x-telegram-bot-api-secret-token': 'wrong-secret',
+          } },
+        resolve
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    assert.equal(res.statusCode, 403);
+    delete process.env.WEBHOOK_SECRET;
   });
 });

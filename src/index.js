@@ -3,14 +3,15 @@
 // No Twilio. No Gemini. No external dependencies beyond Express.
 
 import express from 'express';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
+import { randomBytes } from 'crypto';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import http from 'http';
-import { splitMessage, RateLimiter } from './utils.js';
+import { splitMessage, RateLimiter, buildContextPreamble } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -27,12 +28,16 @@ let _logBytes  = existsSync(LOG_FILE) ? statSync(LOG_FILE).size : 0;
 
 function rotateLogs() {
   _logStream.end();
-  for (let i = LOG_MAX_FILES - 1; i >= 1; i--) {
-    const src = `${LOG_FILE}.${i}`;
-    if (existsSync(src)) renameSync(src, `${LOG_FILE}.${i + 1}`);
+  try {
+    for (let i = LOG_MAX_FILES - 1; i >= 1; i--) {
+      const src = `${LOG_FILE}.${i}`;
+      if (existsSync(src)) renameSync(src, `${LOG_FILE}.${i + 1}`);
+    }
+    if (existsSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`)) unlinkSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`);
+    renameSync(LOG_FILE, `${LOG_FILE}.1`);
+  } catch (e) {
+    // best-effort rotation; ignore rename/unlink failures
   }
-  if (existsSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`)) unlinkSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`);
-  renameSync(LOG_FILE, `${LOG_FILE}.1`);
   _logStream = createWriteStream(LOG_FILE, { flags: 'a' });
   _logBytes  = 0;
 }
@@ -124,7 +129,10 @@ function getSession(user) {
     const data = JSON.parse(readFileSync(file, 'utf8'));
     if (Date.now() - data.savedAt > SESSION_TTL_MS) return { sessionId: null, history: data.history ?? [] };
     return { sessionId: data.sessionId, history: data.history ?? [] };
-  } catch { return null; }
+  } catch (e) {
+    console.warn(`[session] Could not read session for ${user}:`, e.message);
+    return null;
+  }
 }
 
 function saveSession(user, sessionId, { userMessage, assistantReply, prevHistory = [] } = {}) {
@@ -147,12 +155,6 @@ function clearSession(user) {
   } catch (e) {
     console.warn(`[session] Could not clear session for ${user}:`, e.message);
   }
-}
-
-function buildContextPreamble(history) {
-  if (!history || history.length === 0) return '';
-  const lines = history.map(h => `User: ${h.user}\nBrian: ${h.assistant}`).join('\n\n');
-  return `[Your previous session expired. Here is recent conversation context so you can continue naturally — do not mention the session or this note to the user:\n\n${lines}\n]\n\n`;
 }
 
 // ── Telegram API ─────────────────────────────────────────────
@@ -199,10 +201,12 @@ function downloadTelegramFile(fileId, ext) {
       res.on('data', c => { data += c; });
       res.on('end', () => {
         let filePath;
-        try { filePath = JSON.parse(data).result?.file_path; } catch { }
+        try { filePath = JSON.parse(data).result?.file_path; } catch (e) {
+          console.warn('[getFile] JSON parse error:', e.message);
+        }
         if (!filePath) return reject(new Error('getFile returned no path'));
 
-        const tmpPath = join(tmpdir(), `brian-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+        const tmpPath = join(tmpdir(), `brian-${randomBytes(8).toString('hex')}.${ext}`);
         const dest = createWriteStream(tmpPath);
         https.get(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`, stream => {
           stream.pipe(dest);
@@ -262,52 +266,57 @@ function transcribeVoice(audioPath) {
 }
 
 // ── Claude runner ────────────────────────────────────────────
-function buildClaudeCmd(user, message, { imagePaths = [], sessionId = null } = {}) {
-  const resumeFlag = sessionId ? `--resume "${sessionId}"` : '';
-  const mcpFlag = existsSync(MCP_CONFIG) ? `--mcp-config "${MCP_CONFIG}"` : '';
+// Returns an args array for spawnSync — never joins into a shell string,
+// so user message content cannot be interpreted as shell metacharacters.
+function buildClaudeArgs(user, message, { imagePaths = [], sessionId = null } = {}) {
+  const args = [
+    '--output-format', 'json',
+    '--print',
+    '--max-turns', String(MAX_TURNS),
+    '--dangerously-skip-permissions',
+  ];
 
-  const pluginDirs = pluginsForUser(user)
+  pluginsForUser(user)
     .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSIONS[name]))
     .filter(p => existsSync(p))
-    .map(p => `--plugin-dir "${p}"`)
-    .join(' ');
+    .forEach(p => { args.push('--plugin-dir', p); });
 
-  const imageFlags = imagePaths.map(p => `--image "${p}"`).join(' ');
+  if (existsSync(MCP_CONFIG)) args.push('--mcp-config', MCP_CONFIG);
+  if (sessionId) args.push('--resume', sessionId);
+  imagePaths.forEach(p => { args.push('--image', p); });
 
-  const prompt = `User: ${user}. Message: ${message}`;
-  const escaped = prompt.replace(/"/g, '\\"').replace(/\n/g, ' ');
-
-  return [
-    'claude',
-    '--output-format json',
-    '--print',
-    `--max-turns ${MAX_TURNS}`,
-    '--dangerously-skip-permissions',
-    pluginDirs,
-    mcpFlag,
-    resumeFlag,
-    imageFlags,
-    '--',
-    `"${escaped}"`
-  ].filter(Boolean).join(' ');
+  args.push('--', `User: ${user}. Message: ${message}`);
+  return args;
 }
 
 function runClaude(user, message, { imagePaths = [] } = {}) {
   const session = getSession(user);
   const { sessionId, history } = session ?? { sessionId: null, history: [] };
 
-  const execOpts = { timeout: 120_000, encoding: 'utf8', env: { ...process.env, BRIAN_USER: user } };
+  const spawnOpts = { timeout: 120_000, encoding: 'utf8', env: { ...process.env, BRIAN_USER: user } };
+
+  const runSpawn = (args) => {
+    const result = spawnSync('claude', args, spawnOpts);
+    if (result.error) throw result.error;
+    if (result.signal) throw new Error(`claude killed by signal ${result.signal}`);
+    if (result.status !== 0) {
+      const err = new Error(`claude exited with code ${result.status}`);
+      err.stderr = result.stderr ?? '';
+      err.stdout = result.stdout ?? '';
+      throw err;
+    }
+    return result.stdout;
+  };
 
   const runFresh = (extraHistory = []) => {
     const preamble = buildContextPreamble(extraHistory);
-    const cmd = buildClaudeCmd(user, preamble + message, { imagePaths });
-    return execSync(cmd, execOpts);
+    return runSpawn(buildClaudeArgs(user, preamble + message, { imagePaths }));
   };
 
   let raw;
   if (sessionId) {
     try {
-      raw = execSync(buildClaudeCmd(user, message, { imagePaths, sessionId }), execOpts);
+      raw = runSpawn(buildClaudeArgs(user, message, { imagePaths, sessionId }));
     } catch (err) {
       const errText = err.stderr ?? err.stdout ?? err.message ?? '';
       if (errText.includes('No conversation found')) {
@@ -328,7 +337,8 @@ function runClaude(user, message, { imagePaths = [] } = {}) {
       saveSession(user, parsed.session_id, { userMessage: message, assistantReply: parsed.result, prevHistory: history });
     }
     return parsed.result ?? raw.trim();
-  } catch {
+  } catch (e) {
+    console.warn('[claude] Could not parse JSON output:', e.message);
     return raw.trim();
   }
 }
@@ -360,7 +370,9 @@ async function drain() {
     console.error(`[${new Date().toISOString()}] Error for ${user}:`, err.message);
     await telegramSend(chatId, "Brian here — I hit a snag on that one. Try again in a moment.").catch(() => {});
   } finally {
-    for (const p of imagePaths) unlinkSync(p);
+    for (const p of imagePaths) {
+      try { unlinkSync(p); } catch (e) { console.warn(`[cleanup] Could not remove ${p}:`, e.message); }
+    }
   }
 
   busy = false;
@@ -371,8 +383,14 @@ async function drain() {
 const app = express();
 app.use(express.json());
 
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+
 // Telegram webhook
 app.post('/telegram', async (req, res) => {
+  // Verify Telegram webhook secret token if configured
+  if (WEBHOOK_SECRET && req.headers['x-telegram-bot-api-secret-token'] !== WEBHOOK_SECRET) {
+    return res.sendStatus(403);
+  }
   res.sendStatus(200); // Acknowledge immediately
 
   const msg = req.body?.message;
@@ -422,7 +440,7 @@ app.post('/telegram', async (req, res) => {
         text = await transcribeVoice(audioPath);
         console.log(`[voice] Transcribed: ${text.slice(0, 80)}`);
       } finally {
-        unlinkSync(audioPath);
+        try { unlinkSync(audioPath); } catch (e) { console.warn(`[cleanup] Could not remove ${audioPath}:`, e.message); }
       }
     } catch (e) {
       console.error('[voice] Transcription failed:', e.message);
@@ -644,15 +662,19 @@ app.post('/telegram', async (req, res) => {
 // ── Proactive push endpoint ───────────────────────────────────
 // Internal services POST here to message a family member by name.
 // Body: { "user": "moriah", "message": "EV charge complete." }
-// Protect with PUSH_SECRET env var if exposed beyond localhost.
-app.post('/push', express.json(), (req, res) => {
+// PUSH_SECRET must be set — pass it as X-Push-Secret header.
+app.post('/push', (req, res) => {
   const secret = process.env.PUSH_SECRET;
-  if (secret && req.headers['x-push-secret'] !== secret) {
+  if (!secret || req.headers['x-push-secret'] !== secret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { user, message } = req.body ?? {};
   if (!user || !message) return res.status(400).json({ error: 'user and message are required' });
+
+  if (!rateLimiter.isAllowed(`push:${user}`)) {
+    return res.status(429).json({ error: 'Rate limit exceeded' });
+  }
 
   const telegramId = familyMap[user];
   if (!telegramId) return res.status(404).json({ error: `Unknown user: ${user}` });
@@ -678,4 +700,6 @@ app.listen(PORT, () => {
   console.log(`Family: ${Object.keys(familyMap).join(', ') || '(none configured)'}`);
   console.log(`MCP config: ${existsSync(MCP_CONFIG) ? MCP_CONFIG : 'not found'}`);
   console.log(`Session TTL: ${SESSION_TTL_MS / 3_600_000}h`);
+  if (!process.env.PUSH_SECRET) console.warn('[config] PUSH_SECRET is not set — /push endpoint will reject all requests');
+  if (!WEBHOOK_SECRET) console.warn('[config] WEBHOOK_SECRET is not set — Telegram webhook requests are not signature-verified');
 });

@@ -41,11 +41,12 @@
 - [ ] `[Human]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP — reassigned from [Code]: requires Google Calendar MCP credentials to be configured on the NAS
 
 ## ✅ Completed
+- [x] `[Code]` 2026-04-22 — QA audit + full fix pass: shell injection patched (execSync→spawnSync args array), PUSH_SECRET now required on /push (was silently open), image/voice temp-file cleanup crashes fixed, bare catch blocks log errors, log rotation file-op errors handled, /push rate-limited, optional Telegram webhook signature verification (WEBHOOK_SECRET), duplicate workflow deleted, buildContextPreamble moved to utils.js, tests 13→20 passing, .env.example and README updated
 - [x] 2026-04-19 — Completed: Rate limiting per user — sliding-window RateLimiter in src/utils.js (5 msgs/60s, configurable via RATE_MAX_MESSAGES/RATE_WINDOW_SECONDS env vars); wired into webhook handler; 4 new tests pass
 - [x] `[Code]` 2026-04-19 — Added enphase, juicebox, coordinator MCP servers to config/mcp.json (SSE at 172.18.0.1, reachable via Docker bridge gateway)
 - [x] `[Code]` 2026-04-19 — Bot fully working: non-root user, `--dangerously-skip-permissions`, `--plugin-dir` for brian-family skills, `--` separator fix, `type:http` MCP schema, supplements seeded in correct `prescriptions.item` format
 - [x] `[Code]` 2026-04-19 — Long-lived OAuth token (1-year, via `claude setup-token`) written to NAS credentials file with `expiresAt: 9999999999999` — session-start hook NAS-refresh section removed (no longer needed)
-- [x] `[Code]` 2026-04-19 — GHCR build workflow: `.github/workflows/build-brian-telegram.yml` — builds on push + weekly Sunday 04:00 UTC
+- [x] `[Code]` 2026-04-19 — GHCR build workflow: `.github/workflows/build.yml` — builds on push + weekly Sunday 06:00 UTC + NAS deploy via cloudflared SSH (consolidated from two workflow files 2026-04-22)
 - [x] `[Code]` 2026-04-19 — docker-compose updated to pull `ghcr.io/aldarondo/brian-telegram:latest` instead of local build
 - [x] `[Code]` 2026-04-18 — Scaffold: src/index.js, Dockerfile, docker-compose.yml, CLAUDE.md, tests
 - [x] `[Code]` 2026-04-18 — Switched from API key to mounted ~/.claude credentials (subscription auth)
