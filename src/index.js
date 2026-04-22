@@ -4,7 +4,7 @@
 
 import express from 'express';
 import { execSync } from 'child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
@@ -16,20 +16,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
 // ── Persistent logging ──────────────────────────────────────
-const LOG_DIR = process.env.LOG_DIR || join(ROOT, 'logs');
+const LOG_DIR      = process.env.LOG_DIR       || join(ROOT, 'logs');
+const LOG_MAX_BYTES = parseInt(process.env.LOG_MAX_MB    || '10',  10) * 1024 * 1024;
+const LOG_MAX_FILES = parseInt(process.env.LOG_MAX_FILES || '5',   10);
+const LOG_FILE      = join(LOG_DIR, 'app.log');
 if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
 
-let _logDate = '';
-let _logStream = null;
+let _logStream = createWriteStream(LOG_FILE, { flags: 'a' });
+let _logBytes  = existsSync(LOG_FILE) ? statSync(LOG_FILE).size : 0;
 
-function getLogStream() {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  if (today !== _logDate) {
-    if (_logStream) _logStream.end();
-    _logStream = createWriteStream(join(LOG_DIR, `app-${today}.log`), { flags: 'a' });
-    _logDate = today;
+function rotateLogs() {
+  _logStream.end();
+  for (let i = LOG_MAX_FILES - 1; i >= 1; i--) {
+    const src = `${LOG_FILE}.${i}`;
+    if (existsSync(src)) renameSync(src, `${LOG_FILE}.${i + 1}`);
   }
-  return _logStream;
+  if (existsSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`)) unlinkSync(`${LOG_FILE}.${LOG_MAX_FILES + 1}`);
+  renameSync(LOG_FILE, `${LOG_FILE}.1`);
+  _logStream = createWriteStream(LOG_FILE, { flags: 'a' });
+  _logBytes  = 0;
 }
 
 ['log', 'warn', 'error'].forEach(level => {
@@ -37,7 +42,10 @@ function getLogStream() {
   console[level] = (...args) => {
     orig(...args);
     const line = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-    getLogStream().write(`[${level.toUpperCase()}] ${line}\n`);
+    const entry = `[${level.toUpperCase()}] ${line}\n`;
+    if (_logBytes + entry.length > LOG_MAX_BYTES) rotateLogs();
+    _logStream.write(entry);
+    _logBytes += entry.length;
   };
 });
 
