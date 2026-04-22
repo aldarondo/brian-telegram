@@ -250,12 +250,10 @@ function transcribeVoice(audioPath) {
 }
 
 // ── Claude runner ────────────────────────────────────────────
-function runClaude(user, message, { imagePaths = [] } = {}) {
-  const existingSession = getSession(user);
-  const resumeFlag = existingSession ? `--resume "${existingSession}"` : '';
+function buildClaudeCmd(user, message, { imagePaths = [], sessionId = null } = {}) {
+  const resumeFlag = sessionId ? `--resume "${sessionId}"` : '';
   const mcpFlag = existsSync(MCP_CONFIG) ? `--mcp-config "${MCP_CONFIG}"` : '';
 
-  // Load installed plugin skill dirs for this user
   const pluginDirs = pluginsForUser(user)
     .map(name => join(PLUGIN_BASE, name, PLUGIN_VERSIONS[name]))
     .filter(p => existsSync(p))
@@ -264,11 +262,10 @@ function runClaude(user, message, { imagePaths = [] } = {}) {
 
   const imageFlags = imagePaths.map(p => `--image "${p}"`).join(' ');
 
-  // Wrap message in user context so skills know who's asking
   const prompt = `User: ${user}. Message: ${message}`;
   const escaped = prompt.replace(/"/g, '\\"').replace(/\n/g, ' ');
 
-  const cmd = [
+  return [
     'claude',
     '--output-format json',
     '--print',
@@ -281,12 +278,30 @@ function runClaude(user, message, { imagePaths = [] } = {}) {
     '--',
     `"${escaped}"`
   ].filter(Boolean).join(' ');
+}
 
-  const raw = execSync(cmd, {
-    timeout: 120_000,
-    encoding: 'utf8',
-    env: { ...process.env, BRIAN_USER: user }
-  });
+function runClaude(user, message, { imagePaths = [] } = {}) {
+  const existingSession = getSession(user);
+
+  const execOpts = { timeout: 120_000, encoding: 'utf8', env: { ...process.env, BRIAN_USER: user } };
+
+  let raw;
+  if (existingSession) {
+    try {
+      raw = execSync(buildClaudeCmd(user, message, { imagePaths, sessionId: existingSession }), execOpts);
+    } catch (err) {
+      const msg = err.stderr ?? err.stdout ?? err.message ?? '';
+      if (msg.includes('No conversation found')) {
+        console.warn(`[session] Stale session for ${user}, clearing and retrying fresh`);
+        clearSession(user);
+        raw = execSync(buildClaudeCmd(user, message, { imagePaths }), execOpts);
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    raw = execSync(buildClaudeCmd(user, message, { imagePaths }), execOpts);
+  }
 
   try {
     const parsed = JSON.parse(raw);
