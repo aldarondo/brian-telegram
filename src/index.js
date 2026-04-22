@@ -15,6 +15,32 @@ import { splitMessage, RateLimiter } from './utils.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
+// ── Persistent logging ──────────────────────────────────────
+const LOG_DIR = process.env.LOG_DIR || join(ROOT, 'logs');
+if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+
+let _logDate = '';
+let _logStream = null;
+
+function getLogStream() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  if (today !== _logDate) {
+    if (_logStream) _logStream.end();
+    _logStream = createWriteStream(join(LOG_DIR, `app-${today}.log`), { flags: 'a' });
+    _logDate = today;
+  }
+  return _logStream;
+}
+
+['log', 'warn', 'error'].forEach(level => {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    orig(...args);
+    const line = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+    getLogStream().write(`[${level.toUpperCase()}] ${line}\n`);
+  };
+});
+
 // ── Config ──────────────────────────────────────────────────
 const PORT              = process.env.PORT || 3100;
 const BOT_TOKEN         = process.env.TELEGRAM_BOT_TOKEN;
