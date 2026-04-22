@@ -39,6 +39,7 @@
 - [x] `[Code]` 2026-04-20 — Jellyfin plugin wired: per-user plugin loading (charles only), jellyfin MCP added to config/mcp.json, SKILL_HELP updated with movies/TV skill
 - [ ] `[Human]` — Reply keyboards: inline buttons for common follow-up actions (confirm, cancel, add more) — reassigned from [Code]: requires UX design decisions about when/which buttons to show; needs Charles to define the trigger protocol before implementation
 - [ ] `[Human]` — Calendar: add events to Team Aldarondo shared Google Calendar via Google Calendar MCP — reassigned from [Code]: requires Google Calendar MCP credentials to be configured on the NAS
+- [ ] `[Code]` — food-log plugin: wire `food-log` into PLUGIN_VERSIONS + PLUGIN_ACCESS + /help once plugin is built. Plan: [../brian-family-marketplace/plans/food-log-plugin.md](../brian-family-marketplace/plans/food-log-plugin.md)
 
 ## ✅ Completed
 - [x] `[Code]` 2026-04-22 — QA audit + full fix pass: shell injection patched (execSync→spawnSync args array), PUSH_SECRET now required on /push (was silently open), image/voice temp-file cleanup crashes fixed, bare catch blocks log errors, log rotation file-op errors handled, /push rate-limited, optional Telegram webhook signature verification (WEBHOOK_SECRET), duplicate workflow deleted, buildContextPreamble moved to utils.js, tests 13→20 passing, .env.example and README updated
