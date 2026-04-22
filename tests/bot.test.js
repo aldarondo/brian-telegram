@@ -5,7 +5,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { splitMessage, RateLimiter, buildContextPreamble } from '../src/utils.js';
+import { splitMessage, RateLimiter, buildContextPreamble, spawnAsync } from '../src/utils.js';
 
 // ── Unit: identity mapping ────────────────────────────────────
 describe('identity mapping', () => {
@@ -127,6 +127,54 @@ describe('session TTL', () => {
   it('considers an expired session invalid', () => {
     const savedAt = Date.now() - (TTL + 1000);
     assert.ok(Date.now() - savedAt > TTL);
+  });
+});
+
+// ── Unit: spawnAsync ─────────────────────────────────────────
+describe('spawnAsync', () => {
+  it('resolves with stdout on success', async () => {
+    const out = await spawnAsync('node', ['-e', 'process.stdout.write("hello")']);
+    assert.equal(out, 'hello');
+  });
+
+  it('rejects with exit code error on non-zero exit', async () => {
+    await assert.rejects(
+      () => spawnAsync('node', ['-e', 'process.exit(1)']),
+      err => {
+        assert.ok(err.message.includes('exited with code 1'));
+        return true;
+      }
+    );
+  });
+
+  it('rejects with ENOENT when command does not exist', async () => {
+    await assert.rejects(
+      () => spawnAsync('this-command-does-not-exist', []),
+      err => {
+        assert.equal(err.code, 'ENOENT');
+        return true;
+      }
+    );
+  });
+
+  it('rejects and kills the process when timeout expires', async () => {
+    const start = Date.now();
+    await assert.rejects(
+      () => spawnAsync('node', ['-e', 'setTimeout(()=>{},60000)'], { timeout: 100 }),
+      err => {
+        assert.ok(err.message.includes('timed out'));
+        assert.ok(Date.now() - start < 2000, 'should resolve quickly after timeout');
+        return true;
+      }
+    );
+  });
+
+  it('does not block the event loop during execution', async () => {
+    let ticks = 0;
+    const counter = setInterval(() => { ticks++; }, 10);
+    await spawnAsync('node', ['-e', 'setTimeout(()=>{},150)'], { timeout: 500 });
+    clearInterval(counter);
+    assert.ok(ticks >= 5, `event loop should have ticked during spawn (got ${ticks})`);
   });
 });
 

@@ -1,4 +1,34 @@
+import { spawn } from 'child_process';
+
 const TG_MAX = 4096;
+
+// Spawn a process and collect stdout, rejecting on non-zero exit or timeout.
+// Does NOT block the event loop — the queue stays responsive while Claude runs.
+export function spawnAsync(cmd, args, { timeout = 120_000, env = process.env } = {}) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { env });
+    let stdout = '', stderr = '';
+    proc.stdout.on('data', d => { stdout += d; });
+    proc.stderr.on('data', d => { stderr += d; });
+
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error(`${cmd} timed out after ${timeout}ms`));
+    }, timeout);
+
+    proc.on('error', err => { clearTimeout(timer); reject(err); });
+    proc.on('close', code => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        const err = new Error(`${cmd} exited with code ${code}`);
+        err.stderr = stderr;
+        err.stdout = stdout;
+        return reject(err);
+      }
+      resolve(stdout);
+    });
+  });
+}
 
 // Build a context preamble from expired-session history so Claude can continue naturally.
 export function buildContextPreamble(history) {

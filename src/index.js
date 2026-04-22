@@ -3,7 +3,6 @@
 // No Twilio. No Gemini. No external dependencies beyond Express.
 
 import express from 'express';
-import { spawnSync } from 'child_process';
 import { randomBytes } from 'crypto';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
@@ -11,7 +10,7 @@ import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import http from 'http';
-import { splitMessage, RateLimiter, buildContextPreamble } from './utils.js';
+import { splitMessage, RateLimiter, buildContextPreamble, spawnAsync } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -294,24 +293,13 @@ function buildClaudeArgs(user, message, { imagePaths = [], sessionId = null } = 
   return args;
 }
 
-function runClaude(user, message, { imagePaths = [] } = {}) {
+async function runClaude(user, message, { imagePaths = [] } = {}) {
   const session = getSession(user);
   const { sessionId, history } = session ?? { sessionId: null, history: [] };
 
-  const spawnOpts = { timeout: 120_000, encoding: 'utf8', env: { ...process.env, BRIAN_USER: user } };
+  const spawnOpts = { timeout: 120_000, env: { ...process.env, BRIAN_USER: user } };
 
-  const runSpawn = (args) => {
-    const result = spawnSync('claude', args, spawnOpts);
-    if (result.error) throw result.error;
-    if (result.signal) throw new Error(`claude killed by signal ${result.signal}`);
-    if (result.status !== 0) {
-      const err = new Error(`claude exited with code ${result.status}`);
-      err.stderr = result.stderr ?? '';
-      err.stdout = result.stdout ?? '';
-      throw err;
-    }
-    return result.stdout;
-  };
+  const runSpawn = (args) => spawnAsync('claude', args, spawnOpts);
 
   const runFresh = (extraHistory = []) => {
     const preamble = buildContextPreamble(extraHistory);
@@ -321,19 +309,19 @@ function runClaude(user, message, { imagePaths = [] } = {}) {
   let raw;
   if (sessionId) {
     try {
-      raw = runSpawn(buildClaudeArgs(user, message, { imagePaths, sessionId }));
+      raw = await runSpawn(buildClaudeArgs(user, message, { imagePaths, sessionId }));
     } catch (err) {
       const errText = err.stderr ?? err.stdout ?? err.message ?? '';
       if (errText.includes('No conversation found')) {
         console.warn(`[session] Stale session for ${user}, recovering with ${history.length} history exchange(s)`);
         clearSession(user);
-        raw = runFresh(history);
+        raw = await runFresh(history);
       } else {
         throw err;
       }
     }
   } else {
-    raw = runFresh(history);
+    raw = await runFresh(history);
   }
 
   try {
