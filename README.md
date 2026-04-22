@@ -116,6 +116,30 @@ curl -s -X POST http://brian-telegram:3100/push \
 
 > On the Docker bridge network the service is reachable at `brian-telegram:3100`. From the NAS host use `localhost:3100` (or the mapped host port).
 
+## Logging
+
+Logs are written to `app.log` in the mounted logs directory and persist across container restarts and recreations.
+
+**NAS path:** `/volume1/docker/brian-telegram/logs/`
+
+Create the directory before first deploy:
+```bash
+mkdir -p /volume1/docker/brian-telegram/logs
+```
+
+Rotation happens automatically by size — when `app.log` exceeds the limit it is renamed to `app.log.1`, prior backups shift up, and the oldest is deleted. Defaults to 10 MB per file × 5 files = **50 MB max total**.
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `LOG_MAX_MB` | `10` | Max size of `app.log` before rotation |
+| `LOG_MAX_FILES` | `5` | Number of backup files to keep |
+| `LOG_DIR` | `logs/` inside container | Override the log directory path |
+
+**Tailing logs on the NAS:**
+```bash
+tail -f /volume1/docker/brian-telegram/logs/app.log
+```
+
 ## Dependencies
 
 - Node.js 20+
