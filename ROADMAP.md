@@ -57,6 +57,5 @@
 - [x] `[Human]` 2026-04-18 — Charles's Telegram ID (7689023388) wired into config/family.json
 
 ## 🚫 Blocked
-- ❌ [docker-monitor:container-stopped] Container `brian-telegram` is not running on the NAS — check `docker logs brian-telegram` and restart — 2026-04-23 08:42 UTC
 
 <!-- log blockers here -->
