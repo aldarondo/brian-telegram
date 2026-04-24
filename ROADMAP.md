@@ -46,6 +46,7 @@
 - [ ] `[Code]` — **Refactor for multi-platform**: extract `runClaude()` + session store + queue + family-name resolver into a platform-agnostic core module. Existing `/telegram` webhook becomes `src/adapters/telegram.js` calling the core. Prereq for WhatsApp/Slack adapters below.
 - [ ] `[Code]` — **WhatsApp adapter**: `src/adapters/whatsapp.js` using [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) webhook on `/whatsapp`. Map WA phone numbers → `config/family.json` names. Reuse queue/session/rate-limit/voice. Cost: 1,000 free service conversations/mo, then per-conversation pricing. Requires Meta Business verification.
 - [ ] `[Code]` — **Slack adapter**: `src/adapters/slack.js` using [Slack Events API](https://api.slack.com/apis/events-api) on `/slack`. Register a Slack app with `im:history` + `chat:write` + `files:read` scopes. Map Slack user IDs → family.json names. Free for personal workspace.
+- [ ] `[Code]` — **Google Chat adapter**: `src/adapters/google-chat.js` using [Google Chat API](https://developers.google.com/workspace/chat) HTTP-endpoint app on `/google-chat`. Verify Google-signed JWT on inbound events, map Google user IDs → family.json names, reply via the synchronous response body (no extra API call needed for 1:1 DMs). Free on Workspace; requires a GCP project + Chat API enabled.
 
 ## ✅ Completed
 - [x] `[Code]` 2026-04-22 — food-log plugin wired: PLUGIN_VERSIONS + PLUGIN_ACCESS + /help food-log entry with aliases (food, calories, macros, nutrition)
