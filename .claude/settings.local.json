@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/Aldarondo Family/Documents/Github/claude-synology/**)",
-      "Bash(python skills/synology.py ssh \"cat /volume1/docker/brian-telegram/.env\")"
+      "Bash(python skills/synology.py ssh \"cat /volume1/docker/brian-telegram/.env\")",
+      "Bash(python skills/synology.py ssh \"sudo docker exec brian-telegram claude plugin marketplace update brian-family\" --sudo)",
+      "Bash(python skills/synology.py ssh \"sudo docker exec brian-telegram cat /home/brian/.claude/plugins/marketplaces.json 2>/dev/null || echo 'not found'\" --sudo)"
     ]
   }
 }

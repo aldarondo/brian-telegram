@@ -71,5 +71,8 @@
 - [x] `[Human]` 2026-04-18 — Charles's Telegram ID (7689023388) wired into config/family.json
 
 ## 🚫 Blocked
+<<<<<<< HEAD
 
+=======
+>>>>>>> 96b81de (chore: brian-telegram roadmap:  Two open [Human] items: 1. Collect)
 <!-- log blockers here -->
