@@ -89,16 +89,34 @@ const PLUGIN_VERSIONS = {
   'grocery-list':  '1.0.2',
   'recipes':       '1.0.2',
   'prescriptions': '1.0.2',
+  'health':        '0.2.0',
   'jellyfin':      '1.0.1',
   'food-log':      '1.0.0',
+  'meal-plan':     '1.0.0',
+  'vehicles':      '1.0.0',
+  'contacts':      '1.0.0',
+  'maintenance':   '1.0.0',
+  'gifts':         '1.0.0',
+  'travel':        '1.0.0',
+  'roadmap':       '1.0.0',
+  'energy':        '0.1.0',
 };
 
 const PLUGIN_ACCESS = {
   'grocery-list':  'all',
   'recipes':       'all',
   'prescriptions': 'all',
+  'health':        'all',
   'jellyfin':      'charles',
   'food-log':      'all',
+  'meal-plan':     'all',
+  'vehicles':      'all',
+  'contacts':      'all',
+  'maintenance':   'all',
+  'gifts':         'all',
+  'travel':        'all',
+  'roadmap':       'charles',
+  'energy':        'charles',
 };
 
 function pluginsForUser(user) {
@@ -549,14 +567,81 @@ app.post('/telegram', async (req, res) => {
       },
       health: {
         emoji: '🏃',
-        label: 'Health & fitness (Withings + Whoop)',
-        triggers: ['health', 'withings', 'whoop', 'weight', 'sleep', 'heart rate', 'recovery', 'fitness'],
+        label: 'Health & fitness',
+        triggers: ['health', 'withings', 'whoop', 'weight', 'sleep', 'heart rate', 'recovery', 'fitness', 'health check', 'health summary'],
         examples: [
           '"what was my weight today?"',
           '"how did I sleep last night?"',
           '"what\'s my recovery score?"',
           '"show my heart rate trend this week"',
-          '"log my blood pressure: 120/80"',
+          '"give me a health check"',
+          '"any medication interactions I should know about?"',
+        ],
+      },
+      'meal-plan': {
+        emoji: '🍽️',
+        label: 'Meal planning',
+        triggers: ['meal plan', 'meal planning', 'what should we make', 'dinner ideas', 'weekly menu', 'plan meals'],
+        examples: [
+          '"plan meals for this week"',
+          '"what should we make for dinner?"',
+          '"build a meal plan from our recipes"',
+          '"add the missing ingredients to the grocery list"',
+        ],
+      },
+      vehicles: {
+        emoji: '🚙',
+        label: 'Vehicles',
+        triggers: ['vehicle', 'vehicles', 'car maintenance', 'oil change', 'registration', 'insurance renewal'],
+        examples: [
+          '"when is the car due for an oil change?"',
+          '"log a tire rotation for the Subaru"',
+          '"when does the registration expire?"',
+          '"add a service record for the Honda"',
+        ],
+      },
+      contacts: {
+        emoji: '📞',
+        label: 'Family contacts',
+        triggers: ['contacts', 'contact', 'phone number', 'doctor', 'emergency contact', 'care team'],
+        examples: [
+          '"what\'s the pediatrician\'s number?"',
+          '"add a new emergency contact"',
+          '"show me the care team"',
+          '"who\'s our plumber?"',
+        ],
+      },
+      maintenance: {
+        emoji: '🔧',
+        label: 'Home maintenance',
+        triggers: ['maintenance', 'home maintenance', 'hvac', 'filter', 'smoke detector', 'gutters', 'what\'s due'],
+        examples: [
+          '"what home maintenance is due?"',
+          '"log an HVAC filter change"',
+          '"when did we last clean the gutters?"',
+          '"add a reminder to check smoke detectors"',
+        ],
+      },
+      gifts: {
+        emoji: '🎁',
+        label: 'Gifts & birthdays',
+        triggers: ['gifts', 'gift', 'birthday', 'birthday ideas', 'present', 'anniversary'],
+        examples: [
+          '"whose birthday is coming up?"',
+          '"add a gift idea for Moriah"',
+          '"what did we give Jack last year?"',
+          '"show the gift list for the kids"',
+        ],
+      },
+      travel: {
+        emoji: '✈️',
+        label: 'Travel & trips',
+        triggers: ['travel', 'trip', 'vacation', 'itinerary', 'packing list', 'flight', 'hotel'],
+        examples: [
+          '"show our upcoming trips"',
+          '"add a trip to Sedona in June"',
+          '"what\'s on the packing list for the camping trip?"',
+          '"log the hotel confirmation number"',
         ],
       },
       shopping: {
@@ -584,6 +669,28 @@ app.post('/telegram', async (req, res) => {
     };
 
     const SKILL_HELP_CHARLES = {
+      roadmap: {
+        emoji: '🗺️',
+        label: 'Project roadmap',
+        triggers: ['roadmap', 'project', 'tasks', 'backlog', 'add task', 'what\'s on my roadmap'],
+        examples: [
+          '"what\'s on my roadmap?"',
+          '"add a task to brian-telegram: add group chat support"',
+          '"register a new project called my-app"',
+          '"mark the jellyfin task done"',
+        ],
+      },
+      energy: {
+        emoji: '⚡',
+        label: 'Home energy report',
+        triggers: ['energy report', 'energy summary', 'solar summary', 'power summary', 'home energy'],
+        examples: [
+          '"give me an energy summary for today"',
+          '"how much solar did we produce this week?"',
+          '"what\'s the weekly energy trend?"',
+          '"email me the monthly energy report"',
+        ],
+      },
       jellyfin: {
         emoji: '🎬',
         label: 'Movies & TV (Jellyfin)',
@@ -617,6 +724,14 @@ app.post('/telegram', async (req, res) => {
       movies: 'jellyfin', shows: 'jellyfin', 'tv shows': 'jellyfin',
       watch: 'jellyfin', 'new releases': 'jellyfin', queue: 'jellyfin',
       food: 'food-log', calories: 'food-log', macros: 'food-log', nutrition: 'food-log',
+      'meal plan': 'meal-plan', 'meal planning': 'meal-plan', dinner: 'meal-plan', menu: 'meal-plan',
+      car: 'vehicles', vehicle: 'vehicles', 'oil change': 'vehicles', registration: 'vehicles',
+      contact: 'contacts', doctor: 'contacts', emergency: 'contacts', 'care team': 'contacts',
+      'home maintenance': 'maintenance', hvac: 'maintenance', filter: 'maintenance', gutters: 'maintenance',
+      gift: 'gifts', birthday: 'gifts', present: 'gifts', anniversary: 'gifts',
+      trip: 'travel', vacation: 'travel', itinerary: 'travel', packing: 'travel',
+      'energy report': 'energy', 'energy summary': 'energy', 'solar summary': 'energy',
+      project: 'roadmap', tasks: 'roadmap', backlog: 'roadmap',
     };
 
     const arg = text.slice('/help'.length).trim().toLowerCase();

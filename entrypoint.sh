@@ -16,8 +16,16 @@ else
   claude plugin marketplace update "$MARKETPLACE_NAME" || echo "[entrypoint] Warning: marketplace update failed"
 fi
 
-# Install / update plugins
-for plugin in grocery-list recipes prescriptions jellyfin; do
+# Install / update all plugins listed in the marketplace manifest
+MANIFEST="$HOME/.claude/plugins/marketplaces/$MARKETPLACE_NAME/.claude-plugin/marketplace.json"
+if [ -f "$MANIFEST" ]; then
+  PLUGINS=$(grep '"name"' "$MANIFEST" | grep -v '"owner"' | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+else
+  # fallback if manifest not readable yet
+  PLUGINS="grocery-list recipes prescriptions health jellyfin food-log meal-plan vehicles contacts maintenance gifts travel roadmap energy"
+fi
+
+for plugin in $PLUGINS; do
   echo "[entrypoint] Installing plugin: $plugin@$MARKETPLACE_NAME"
   claude plugin install "${plugin}@${MARKETPLACE_NAME}" || echo "[entrypoint] Warning: could not install $plugin"
 done

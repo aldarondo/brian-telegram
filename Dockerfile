@@ -3,6 +3,9 @@ FROM node:20-slim
 # git is required for 'claude plugin marketplace add' (clones the marketplace repo)
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
+# Force HTTPS for github.com so 'claude plugin marketplace update' works without SSH keys in the container
+RUN git config --system url."https://github.com/".insteadOf "git@github.com:"
+
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 

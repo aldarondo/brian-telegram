@@ -2,12 +2,6 @@
 > Tag key: `[Code]` = Claude Code · `[Cowork]` = Claude Cowork · `[Human]` = Charles must act
 
 ## 🚧 Human Action Required
-- `[Human]` Install jellyfin plugin on NAS: SSH in and run:
-  ```
-  claude plugin marketplace update brian-family
-  claude plugin install jellyfin@brian-family
-  ```
-  Then redeploy the bot: `docker compose pull && docker compose up -d`
 
 ## 🔄 In Progress
 <!-- nothing active — bot is live and working -->
@@ -55,6 +49,8 @@
 - [ ] `[Code]` — **Health check + proactive alerts to Charles**: extend `/health` to probe each MCP server (HEAD/GET on the SSE URL or a lightweight ping tool) and include queue depth + last-message-per-user timestamps. Add a monitor loop (every 60s) that notifies Charles via the existing `/push` pipeline when: (a) any MCP server has been unreachable for >5 min, (b) webhook queue depth exceeds N, or (c) the bot hasn't successfully completed a Claude run in >15 min during waking hours. Suppress duplicate alerts with a 30-min cooldown per incident key.
 
 ## ✅ Completed
+- [x] `[Code]` 2026-04-25 — Automated marketplace refresh: Dockerfile git HTTPS rewrite, entrypoint.sh full plugin list (all 14 brian-family plugins), bot.js PLUGIN_VERSIONS/PLUGIN_ACCESS/SKILL_HELP wired for all new plugins, GHA workflow in brian-family-marketplace triggers git pull + reinstall on push to main
+- [x] `[Human]` 2026-04-25 — Jellyfin plugin already installed on NAS (jellyfin@brian-family v1.0.1, installed 2026-04-20)
 - [x] `[Code]` 2026-04-23 — food-log plugin installed on NAS: cloned marketplace via HTTPS to /volume1/docker/brian-telegram/claude-creds/plugins/marketplaces/brian-family, installed food-log@brian-family v1.0.0 via docker exec
 - [x] `[Code]` 2026-04-22 — food-log plugin wired: PLUGIN_VERSIONS + PLUGIN_ACCESS + /help food-log entry with aliases (food, calories, macros, nutrition)
 - [x] `[Code]` 2026-04-22 — QA audit + full fix pass: shell injection patched (execSync→spawnSync args array), PUSH_SECRET now required on /push (was silently open), image/voice temp-file cleanup crashes fixed, bare catch blocks log errors, log rotation file-op errors handled, /push rate-limited, optional Telegram webhook signature verification (WEBHOOK_SECRET), duplicate workflow deleted, buildContextPreamble moved to utils.js, tests 13→20 passing, .env.example and README updated
