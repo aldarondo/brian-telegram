@@ -71,6 +71,5 @@
 - [x] `[Human]` 2026-04-18 — Charles's Telegram ID (7689023388) wired into config/family.json
 
 ## 🚫 Blocked
-- ❌ [docker-monitor:deploy-failed] GitHub Actions deploy failed (run #24920110132) — https://github.com/aldarondo/brian-telegram/actions/runs/24920110132 — 2026-04-25 08:00 UTC
 
 <!-- log blockers here -->
