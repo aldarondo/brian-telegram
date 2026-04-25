@@ -21,6 +21,11 @@ services:
       - MAX_TURNS=5
     networks:
       - brian-mcp_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   brian-mcp_default:
