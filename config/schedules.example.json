@@ -1,0 +1,14 @@
+[
+  {
+    "cron": "0 18 * * 0",
+    "user": "charles",
+    "message": "Summarize low grocery items and any recipes worth making this week.",
+    "timezone": "America/Phoenix"
+  },
+  {
+    "cron": "0 7 * * *",
+    "user": "charles",
+    "message": "Give me a calendar + weather rundown for today.",
+    "timezone": "America/Phoenix"
+  }
+]
