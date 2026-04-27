@@ -165,6 +165,34 @@ volumes:
 
 Sessions expire after `SESSION_TTL_HOURS` (default 24h). On expiry the session ID is dropped but recent conversation history is injected as a context preamble so replies stay coherent.
 
+## Recurring schedules
+
+`config/schedules.json` (gitignored) drives cron-based synthetic messages that run through the same queue, session, and reply paths as inbound webhook traffic. Useful for daily / weekly digests like a Sunday grocery summary or a 7 AM calendar rundown.
+
+Copy `config/schedules.example.json` to `config/schedules.json` and edit. Each entry:
+
+```json
+{
+  "cron": "0 18 * * 0",
+  "user": "charles",
+  "message": "Weekly grocery summary please.",
+  "timezone": "America/Phoenix"
+}
+```
+
+- `cron` — standard 5-field crontab string (validated by `node-cron`)
+- `user` — name from `config/family.json`; entries with unknown users are skipped at boot
+- `message` — synthetic prompt injected into the queue at each tick
+- `timezone` — IANA TZ name (optional; falls back to `TZ` env var, then container default)
+
+Set `SCHEDULER_DISABLED=1` to skip scheduler boot entirely (used in tests / temporary disable).
+
+Mount the schedule file in the NAS deploy:
+```yaml
+volumes:
+  - /volume1/docker/brian-telegram/config/schedules.json:/app/config/schedules.json:ro
+```
+
 ## Docker networking
 
 The bot runs on the `brian-mcp_default` bridge network alongside the brian-mcp stack. MCP servers are reachable at the Docker gateway IP (`172.18.0.1` by default). The `--dangerously-skip-permissions` flag is required because Claude Code's permission prompts are interactive and cannot be answered in a headless container.
