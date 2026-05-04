@@ -8,7 +8,16 @@ import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { splitMessage, RateLimiter, buildContextPreamble, spawnAsync } from '../src/utils.js';
+import {
+  splitMessage,
+  RateLimiter,
+  buildContextPreamble,
+  spawnAsync,
+  isGroupChat,
+  isBotMentioned,
+  isReplyToBot,
+  stripBotMention,
+} from '../src/utils.js';
 
 // ── Unit: identity mapping ────────────────────────────────────
 describe('identity mapping', () => {
@@ -181,6 +190,110 @@ describe('spawnAsync', () => {
   });
 });
 
+// ── Unit: group chat helpers ─────────────────────────────────
+describe('group chat helpers', () => {
+  describe('isGroupChat', () => {
+    it('returns true for chat.type group and supergroup', () => {
+      assert.equal(isGroupChat({ chat: { type: 'group' } }), true);
+      assert.equal(isGroupChat({ chat: { type: 'supergroup' } }), true);
+    });
+    it('returns false for private and channel chats', () => {
+      assert.equal(isGroupChat({ chat: { type: 'private' } }), false);
+      assert.equal(isGroupChat({ chat: { type: 'channel' } }), false);
+    });
+    it('returns false for malformed input', () => {
+      assert.equal(isGroupChat(null), false);
+      assert.equal(isGroupChat({}), false);
+      assert.equal(isGroupChat({ chat: {} }), false);
+    });
+  });
+
+  describe('isBotMentioned', () => {
+    it('detects @-mention via entities', () => {
+      const msg = {
+        text: 'hey @BrianBot what time is it',
+        entities: [{ type: 'mention', offset: 4, length: 9 }],
+      };
+      assert.equal(isBotMentioned(msg, 'BrianBot'), true);
+    });
+
+    it('is case-insensitive', () => {
+      const msg = {
+        text: 'hi @brianbot',
+        entities: [{ type: 'mention', offset: 3, length: 9 }],
+      };
+      assert.equal(isBotMentioned(msg, 'BrianBot'), true);
+    });
+
+    it('handles botUsername passed with leading @', () => {
+      const msg = {
+        text: '@BrianBot hi',
+        entities: [{ type: 'mention', offset: 0, length: 9 }],
+      };
+      assert.equal(isBotMentioned(msg, '@BrianBot'), true);
+    });
+
+    it('detects text_mention entity by username', () => {
+      const msg = {
+        text: 'BrianBot hello',
+        entities: [{ type: 'text_mention', offset: 0, length: 8, user: { username: 'BrianBot' } }],
+      };
+      assert.equal(isBotMentioned(msg, 'BrianBot'), true);
+    });
+
+    it('returns false when no entities match the bot', () => {
+      const msg = {
+        text: 'hey @SomeoneElse',
+        entities: [{ type: 'mention', offset: 4, length: 12 }],
+      };
+      assert.equal(isBotMentioned(msg, 'BrianBot'), false);
+    });
+
+    it('returns false when botUsername is empty', () => {
+      assert.equal(isBotMentioned({ text: '@BrianBot', entities: [] }, ''), false);
+    });
+
+    it('looks at caption_entities for media messages', () => {
+      const msg = {
+        caption: 'photo for @BrianBot',
+        caption_entities: [{ type: 'mention', offset: 10, length: 9 }],
+      };
+      assert.equal(isBotMentioned(msg, 'BrianBot'), true);
+    });
+  });
+
+  describe('isReplyToBot', () => {
+    it('returns true when the replied-to message came from a bot', () => {
+      assert.equal(isReplyToBot({ reply_to_message: { from: { is_bot: true } } }), true);
+    });
+    it('returns false when not a reply', () => {
+      assert.equal(isReplyToBot({}), false);
+      assert.equal(isReplyToBot({ reply_to_message: null }), false);
+    });
+    it('returns false when replied-to user is not a bot', () => {
+      assert.equal(isReplyToBot({ reply_to_message: { from: { is_bot: false } } }), false);
+    });
+  });
+
+  describe('stripBotMention', () => {
+    it('removes the @-mention and trims', () => {
+      assert.equal(stripBotMention('@BrianBot hello there', 'BrianBot'), 'hello there');
+    });
+    it('removes multiple mentions', () => {
+      assert.equal(stripBotMention('@BrianBot hi @brianbot again', 'BrianBot'), 'hi again');
+    });
+    it('is case-insensitive', () => {
+      assert.equal(stripBotMention('HELLO @brianbot', 'BrianBot'), 'HELLO');
+    });
+    it('returns input unchanged when there is no mention', () => {
+      assert.equal(stripBotMention('hello there', 'BrianBot'), 'hello there');
+    });
+    it('returns input unchanged when botUsername is empty', () => {
+      assert.equal(stripBotMention('@BrianBot hi', ''), '@BrianBot hi');
+    });
+  });
+});
+
 // ── Bot integration ───────────────────────────────────────────
 // Dynamic import after env vars are set — avoids the module-load BOT_TOKEN check
 // and lets us use the real Express app and injected-dependency functions directly.
@@ -224,9 +337,10 @@ describe('bot integration', () => {
   });
 
   before(async () => {
-    process.env.TELEGRAM_BOT_TOKEN  = 'test-token';
-    process.env.FAMILY_TELEGRAM_IDS = JSON.stringify({ [TEST_USER]: FAMILY_ID });
-    process.env.PUSH_SECRET         = PUSH_SECRET;
+    process.env.TELEGRAM_BOT_TOKEN     = 'test-token';
+    process.env.TELEGRAM_BOT_USERNAME  = 'BrianBot';
+    process.env.FAMILY_TELEGRAM_IDS    = JSON.stringify({ [TEST_USER]: FAMILY_ID });
+    process.env.PUSH_SECRET            = PUSH_SECRET;
     delete process.env.WEBHOOK_SECRET; // ensure clean state
 
     // Dynamic import runs AFTER env vars are set — safe from the BOT_TOKEN guard
@@ -276,6 +390,99 @@ describe('bot integration', () => {
     // path requires a separate server instance started with WEBHOOK_SECRET set — out
     // of scope here. The logic is a single-line guard, straightforward to verify by
     // reading the code.
+  });
+
+  // ── Group chat routing via /reset side effects ───────────
+  // /reset is the cleanest way to verify the webhook's group-vs-private routing
+  // because clearSession is synchronous, has an observable filesystem effect,
+  // and exercises the same sessionKey path as enqueue. We pre-plant session
+  // files and check which one disappears after each request.
+  describe('group chat routing', () => {
+    const GROUP_CHAT_ID = -1001234567890;
+    const userKeyFile  = () => join(sessionsDir, `${TEST_USER}.json`);
+    const groupKeyFile = () => join(sessionsDir, `chat:${GROUP_CHAT_ID}.json`.replace(/[/\\]/g, '_'));
+
+    const plantSession = (file) => writeFileSync(file, JSON.stringify({
+      sessionId: 'planted', savedAt: Date.now(), history: [],
+    }));
+
+    // Wait for the webhook's async post-ack work to complete
+    const settle = () => new Promise(r => setTimeout(r, 50));
+
+    it('ignores group messages without bot mention or reply-to-bot', async () => {
+      plantSession(groupKeyFile());
+      const res = await request('POST', '/telegram', {
+        body: {
+          message: {
+            text: 'just chatting here',
+            from: { id: FAMILY_ID },
+            chat: { id: GROUP_CHAT_ID, type: 'group' },
+          },
+        },
+      });
+      assert.equal(res.statusCode, 200);
+      await settle();
+      // The group session file should still exist — the bot took no action
+      assert.ok(existsSync(groupKeyFile()), 'unmentioned group msg should not touch session');
+      try { unlinkSync(groupKeyFile()); } catch {}
+    });
+
+    it('processes group messages when bot is @-mentioned (strips mention, uses chat-keyed session)', async () => {
+      plantSession(userKeyFile());
+      plantSession(groupKeyFile());
+      const res = await request('POST', '/telegram', {
+        body: {
+          message: {
+            text: '@BrianBot /reset',
+            entities: [{ type: 'mention', offset: 0, length: 9 }],
+            from: { id: FAMILY_ID },
+            chat: { id: GROUP_CHAT_ID, type: 'supergroup' },
+          },
+        },
+      });
+      assert.equal(res.statusCode, 200);
+      await settle();
+      // /reset in a group should clear the chat-keyed session, not the user's private one
+      assert.ok(!existsSync(groupKeyFile()), 'chat-keyed session should be cleared');
+      assert.ok(existsSync(userKeyFile()), 'user private session must NOT leak into group routing');
+      try { unlinkSync(userKeyFile()); } catch {}
+    });
+
+    it('processes group messages when replying to a bot message', async () => {
+      plantSession(groupKeyFile());
+      const res = await request('POST', '/telegram', {
+        body: {
+          message: {
+            text: '/reset',
+            reply_to_message: { from: { is_bot: true } },
+            from: { id: FAMILY_ID },
+            chat: { id: GROUP_CHAT_ID, type: 'group' },
+          },
+        },
+      });
+      assert.equal(res.statusCode, 200);
+      await settle();
+      assert.ok(!existsSync(groupKeyFile()), 'reply-to-bot in group should clear chat-keyed session');
+    });
+
+    it('private chat /reset still uses user-keyed session', async () => {
+      plantSession(userKeyFile());
+      plantSession(groupKeyFile());
+      const res = await request('POST', '/telegram', {
+        body: {
+          message: {
+            text: '/reset',
+            from: { id: FAMILY_ID },
+            chat: { id: FAMILY_ID, type: 'private' },
+          },
+        },
+      });
+      assert.equal(res.statusCode, 200);
+      await settle();
+      assert.ok(!existsSync(userKeyFile()), 'private /reset clears user-keyed session');
+      assert.ok(existsSync(groupKeyFile()), 'private chat must not touch group session');
+      try { unlinkSync(groupKeyFile()); } catch {}
+    });
   });
 
   // ── POST /push ───────────────────────────────────────────

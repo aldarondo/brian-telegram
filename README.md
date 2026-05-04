@@ -156,14 +156,37 @@ tail -f /volume1/docker/brian-telegram/logs/app.log
 
 ## Session storage
 
-Session files are written to `/app/data/sessions/` inside the container (one JSON file per user). Mount this path to persist sessions across container restarts:
+Session files are written to `/app/data/sessions/` inside the container — one JSON file per session bucket. Mount this path to persist sessions across container restarts:
 
 ```yaml
 volumes:
   - /volume1/docker/brian-telegram/sessions:/app/data/sessions
 ```
 
+Session bucketing:
+
+| Chat type | Session key | File |
+|-----------|-------------|------|
+| Private DM | the family member's name | `charles.json` |
+| Group / supergroup | `chat:<chat_id>` | `chat:-1001234567890.json` |
+
+Group chats use a chat-level bucket so multiple speakers can share one thread without leaking into anyone's private DM context. Each entry the bot saves in a group session also records `speaker: <familyName>` so the conversation history attributes who said what.
+
 Sessions expire after `SESSION_TTL_HOURS` (default 24h). On expiry the session ID is dropped but recent conversation history is injected as a context preamble so replies stay coherent.
+
+## Group chats
+
+The bot can join a Telegram group or supergroup, but it stays quiet by default — it only responds when:
+
+- Someone @-mentions the bot's username (set `TELEGRAM_BOT_USERNAME` in `.env`), **or**
+- Someone replies to a previous bot message
+
+Mentions are stripped from the prompt before it reaches Claude. Each speaker is still rate-limited individually (per family-member name), and the conversation thread is shared across speakers via the chat-keyed session described above.
+
+To enable group support:
+1. Set `TELEGRAM_BOT_USERNAME=YourBotName` (no leading `@`) in `.env`
+2. Add the bot to the group via Telegram
+3. Disable Telegram's default privacy mode (`/setprivacy → Disable` via @BotFather) so the bot can read mention/reply messages
 
 ## Recurring schedules
 

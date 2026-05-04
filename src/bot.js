@@ -11,7 +11,16 @@ import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import http from 'http';
-import { splitMessage, RateLimiter, buildContextPreamble, spawnAsync } from './utils.js';
+import {
+  splitMessage,
+  RateLimiter,
+  buildContextPreamble,
+  spawnAsync,
+  isGroupChat,
+  isBotMentioned,
+  isReplyToBot,
+  stripBotMention,
+} from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -59,6 +68,7 @@ export const SESSION_TTL_MS  = parseInt(process.env.SESSION_TTL_HOURS || '24', 1
 export const MCP_CONFIG      = join(ROOT, 'config', 'mcp.json');
 
 const BOT_TOKEN         = process.env.TELEGRAM_BOT_TOKEN;
+const BOT_USERNAME      = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
 const MAX_TURNS         = parseInt(process.env.MAX_TURNS || '5', 10);
 const RATE_MAX_MESSAGES = parseInt(process.env.RATE_MAX_MESSAGES || '5', 10);
 const RATE_WINDOW_MS    = parseInt(process.env.RATE_WINDOW_SECONDS || '60', 10) * 1_000;
@@ -135,38 +145,45 @@ mkdirSync(sessionsDir, { recursive: true });
 
 const MAX_HISTORY = 8;
 
-export function getSession(user) {
+// sessionKey is a string identifying the session bucket — typically a user name for
+// private chats, or `chat:<chatId>` for group chats so multiple speakers share one
+// thread without leaking into per-user DM context.
+function sessionFileFor(sessionKey) {
+  return join(sessionsDir, `${String(sessionKey).replace(/[/\\]/g, '_')}.json`);
+}
+
+export function getSession(sessionKey) {
   try {
-    const file = join(sessionsDir, `${user}.json`);
+    const file = sessionFileFor(sessionKey);
     if (!existsSync(file)) return null;
     const data = JSON.parse(readFileSync(file, 'utf8'));
     if (Date.now() - data.savedAt > SESSION_TTL_MS) return { sessionId: null, history: data.history ?? [] };
     return { sessionId: data.sessionId, history: data.history ?? [] };
   } catch (e) {
-    console.warn(`[session] Could not read session for ${user}:`, e.message);
+    console.warn(`[session] Could not read session for ${sessionKey}:`, e.message);
     return null;
   }
 }
 
-export function saveSession(user, sessionId, { userMessage, assistantReply, prevHistory = [] } = {}) {
+export function saveSession(sessionKey, sessionId, { userMessage, assistantReply, prevHistory = [], speaker } = {}) {
   try {
-    const history = [
-      ...prevHistory,
-      ...(userMessage && assistantReply ? [{ user: userMessage, assistant: assistantReply }] : []),
-    ].slice(-MAX_HISTORY);
-    writeFileSync(join(sessionsDir, `${user}.json`),
+    const newEntry = userMessage && assistantReply
+      ? [{ user: userMessage, assistant: assistantReply, ...(speaker ? { speaker } : {}) }]
+      : [];
+    const history = [...prevHistory, ...newEntry].slice(-MAX_HISTORY);
+    writeFileSync(sessionFileFor(sessionKey),
       JSON.stringify({ sessionId, savedAt: Date.now(), history }));
   } catch (e) {
-    console.warn(`[session] Could not save session for ${user}:`, e.message);
+    console.warn(`[session] Could not save session for ${sessionKey}:`, e.message);
   }
 }
 
-export function clearSession(user) {
+export function clearSession(sessionKey) {
   try {
-    const file = join(sessionsDir, `${user}.json`);
+    const file = sessionFileFor(sessionKey);
     if (existsSync(file)) unlinkSync(file);
   } catch (e) {
-    console.warn(`[session] Could not clear session for ${user}:`, e.message);
+    console.warn(`[session] Could not clear session for ${sessionKey}:`, e.message);
   }
 }
 
@@ -306,8 +323,10 @@ function buildClaudeArgs(user, message, { imagePaths = [], sessionId = null } = 
 }
 
 // _spawn is injectable for testing.
-export async function runClaude(user, message, { imagePaths = [], _spawn = spawnAsync } = {}) {
-  const session = getSession(user);
+// sessionKey defaults to `user` (private DM behavior); group chats pass `chat:<chatId>`.
+export async function runClaude(user, message, { imagePaths = [], sessionKey, _spawn = spawnAsync } = {}) {
+  const key = sessionKey ?? user;
+  const session = getSession(key);
   const { sessionId, history } = session ?? { sessionId: null, history: [] };
 
   const spawnOpts = { timeout: 120_000, env: { ...process.env, BRIAN_USER: user } };
@@ -325,8 +344,8 @@ export async function runClaude(user, message, { imagePaths = [], _spawn = spawn
     } catch (err) {
       const errText = err.stderr ?? err.stdout ?? err.message ?? '';
       if (errText.includes('No conversation found')) {
-        console.warn(`[session] Stale session for ${user}, recovering with ${history.length} history exchange(s)`);
-        clearSession(user);
+        console.warn(`[session] Stale session for ${key}, recovering with ${history.length} history exchange(s)`);
+        clearSession(key);
         raw = await runFresh(history);
       } else {
         throw err;
@@ -339,7 +358,12 @@ export async function runClaude(user, message, { imagePaths = [], _spawn = spawn
   try {
     const parsed = JSON.parse(raw);
     if (parsed.session_id) {
-      saveSession(user, parsed.session_id, { userMessage: message, assistantReply: parsed.result, prevHistory: history });
+      saveSession(key, parsed.session_id, {
+        userMessage: message,
+        assistantReply: parsed.result,
+        prevHistory: history,
+        speaker: key === user ? undefined : user,
+      });
     }
     return parsed.result ?? raw.trim();
   } catch (e) {
@@ -361,14 +385,15 @@ export function enqueue(job) {
 async function drain() {
   if (busy || queue.length === 0) return;
   busy = true;
-  const { user, chatId, message, imagePaths = [] } = queue.shift();
+  const { user, chatId, message, imagePaths = [], sessionKey } = queue.shift();
 
   const ts = new Date().toISOString();
-  console.log(`[${ts}] ${user} (${chatId}): ${message.slice(0, 80)}${imagePaths.length ? ` [+${imagePaths.length} image(s)]` : ''}`);
+  const keyTag = sessionKey && sessionKey !== user ? ` [${sessionKey}]` : '';
+  console.log(`[${ts}] ${user} (${chatId})${keyTag}: ${message.slice(0, 80)}${imagePaths.length ? ` [+${imagePaths.length} image(s)]` : ''}`);
 
   try {
     await sendTyping(chatId);
-    const reply = await runClaude(user, message, { imagePaths });
+    const reply = await runClaude(user, message, { imagePaths, sessionKey });
     await telegramSend(chatId, reply);
     console.log(`[${new Date().toISOString()}] → ${user}: ${String(reply).slice(0, 80)}`);
   } catch (err) {
@@ -399,9 +424,22 @@ app.post('/telegram', async (req, res) => {
 
   const fromId = String(msg.from.id);
   const chatId = msg.chat.id;
+  const inGroup = isGroupChat(msg);
+
+  // Group chats: only respond when @-mentioned or replying to a bot message.
+  // Without this filter the bot would react to every message in the group.
+  if (inGroup) {
+    const mentioned = isBotMentioned(msg, BOT_USERNAME);
+    const replyingToBot = isReplyToBot(msg);
+    if (!mentioned && !replyingToBot) return;
+  }
 
   let text = msg.text?.trim() ?? '';
   let imagePaths = [];
+
+  if (inGroup && text && BOT_USERNAME) {
+    text = stripBotMention(text, BOT_USERNAME);
+  }
 
   if (msg.photo) {
     const fileId = msg.photo[msg.photo.length - 1].file_id;
@@ -462,8 +500,10 @@ app.post('/telegram', async (req, res) => {
     return;
   }
 
+  const sessionKey = inGroup ? `chat:${chatId}` : user;
+
   if (text === '/reset') {
-    clearSession(user);
+    clearSession(sessionKey);
     telegramSend(chatId, "Session cleared — starting fresh.").catch(() => {});
     return;
   }
@@ -765,7 +805,7 @@ app.post('/telegram', async (req, res) => {
     return;
   }
 
-  enqueue({ user, chatId, message: text, imagePaths });
+  enqueue({ user, chatId, message: text, imagePaths, sessionKey });
 });
 
 app.post('/push', (req, res) => {

@@ -60,6 +60,43 @@ export class RateLimiter {
   }
 }
 
+// ── Group chat helpers ───────────────────────────────────────
+// Returns true if the message arrived in a Telegram group or supergroup chat.
+export function isGroupChat(msg) {
+  const t = msg?.chat?.type;
+  return t === 'group' || t === 'supergroup';
+}
+
+// Returns true if the bot is @-mentioned in the message via mention/text_mention entities.
+// botUsername is matched case-insensitively, with or without a leading '@'.
+export function isBotMentioned(msg, botUsername) {
+  if (!botUsername || !msg) return false;
+  const wanted = botUsername.toLowerCase().replace(/^@/, '');
+  const text = msg.text ?? msg.caption ?? '';
+  const entities = msg.entities ?? msg.caption_entities ?? [];
+  for (const ent of entities) {
+    if (ent.type === 'mention') {
+      const slice = text.slice(ent.offset, ent.offset + ent.length).toLowerCase();
+      if (slice === `@${wanted}`) return true;
+    } else if (ent.type === 'text_mention' && ent.user?.username) {
+      if (ent.user.username.toLowerCase() === wanted) return true;
+    }
+  }
+  return false;
+}
+
+// Returns true if the message is a reply to a message that came from a bot.
+export function isReplyToBot(msg) {
+  return msg?.reply_to_message?.from?.is_bot === true;
+}
+
+// Remove all `@botUsername` substrings (case-insensitive) and collapse whitespace.
+export function stripBotMention(text, botUsername) {
+  if (!text || !botUsername) return text;
+  const u = botUsername.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`@${u}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+}
+
 // Split text into ≤4096-char chunks on newline boundaries where possible
 export function splitMessage(text, limit = TG_MAX) {
   if (text.length <= limit) return [text];
